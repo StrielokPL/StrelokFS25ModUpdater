@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
+import tempfile
 from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from . import __version__
 from .gui import MainWindow
@@ -35,16 +37,55 @@ def _exception_hook(exc_type, exc_value, exc_traceback) -> None:
 
 
 def main() -> int:
+    smoke_test = "--smoke-test" in sys.argv
+    first_run_smoke_test = "--first-run-smoke-test" in sys.argv
+    temporary_profile = None
+    if first_run_smoke_test:
+        temporary_profile = tempfile.TemporaryDirectory(prefix="strelok-first-run-")
+        if os.name == "nt":
+            os.environ["LOCALAPPDATA"] = temporary_profile.name
+        else:
+            os.environ["XDG_CONFIG_HOME"] = temporary_profile.name
+            os.environ["XDG_DATA_HOME"] = temporary_profile.name
+
     _configure_logging()
     sys.excepthook = _exception_hook
-    smoke_test = "--smoke-test" in sys.argv
-    qt_arguments = [argument for argument in sys.argv if argument != "--smoke-test"]
+    internal_arguments = {"--smoke-test", "--first-run-smoke-test"}
+    qt_arguments = [argument for argument in sys.argv if argument not in internal_arguments]
     application = QApplication(qt_arguments)
     application.setApplicationName("Strelok FS25 Mod Updater")
     application.setApplicationVersion(__version__)
     application.setOrganizationName("StrelokPL")
-    window = MainWindow(smoke_test=smoke_test)
+
+    first_run_verified = False
+
+    def close_first_run_message() -> None:
+        widget = application.activeModalWidget()
+        if isinstance(widget, QMessageBox):
+            widget.accept()
+        else:
+            QTimer.singleShot(25, close_first_run_message)
+
+    if first_run_smoke_test:
+        QTimer.singleShot(100, close_first_run_message)
+
+    window = MainWindow()
     window.show()
     if smoke_test:
         QTimer.singleShot(750, application.quit)
-    return application.exec()
+    elif first_run_smoke_test:
+        QTimer.singleShot(0, lambda: window.start(check_updates=False))
+
+        def verify_first_run() -> None:
+            nonlocal first_run_verified
+            first_run_verified = window.isVisible()
+            application.quit()
+
+        QTimer.singleShot(400, verify_first_run)
+    else:
+        QTimer.singleShot(0, window.start)
+
+    exit_code = application.exec()
+    if first_run_smoke_test and not first_run_verified:
+        return 1
+    return exit_code

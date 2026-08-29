@@ -1,5 +1,10 @@
 # Historia zmian
 
+## 0.0.1a1 — poprawka pierwszego uruchomienia
+
+- poprawiono zamykanie aplikacji po zaakceptowaniu pierwszego monitu na Linuksie;
+- dodano automatyczny test pełnej sekwencji pierwszego uruchomienia GUI.
+
 ## 0.0.1a — pierwsze wydanie alfa
 
 - utworzono działający rdzeń aplikacji i GUI;

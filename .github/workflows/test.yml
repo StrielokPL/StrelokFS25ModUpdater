@@ -44,4 +44,7 @@ jobs:
       - name: Launch GUI smoke test
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m strelok_fs25_mod_updater --smoke-test
+        shell: bash
+        run: |
+          python -m strelok_fs25_mod_updater --smoke-test
+          python -m strelok_fs25_mod_updater --first-run-smoke-test

@@ -46,13 +46,17 @@ jobs:
         if: runner.os == 'Linux'
         env:
           QT_QPA_PLATFORM: offscreen
-        run: packaging/dist/StrelokFS25ModUpdater --smoke-test
+        run: |
+          packaging/dist/StrelokFS25ModUpdater --smoke-test
+          packaging/dist/StrelokFS25ModUpdater --first-run-smoke-test
       - name: Smoke-test Windows executable
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $env:QT_QPA_PLATFORM = "offscreen"
           & packaging/dist/StrelokFS25ModUpdater.exe --smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & packaging/dist/StrelokFS25ModUpdater.exe --first-run-smoke-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Name Windows executable
         if: runner.os == 'Windows'
