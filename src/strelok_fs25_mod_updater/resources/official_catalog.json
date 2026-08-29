@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "catalogVersion": 1,
-  "minimumUpdaterVersion": "0.1.0.dev1",
+  "minimumUpdaterVersion": "0.0.1a",
   "publishedAt": "2026-08-29",
   "mods": [
     {

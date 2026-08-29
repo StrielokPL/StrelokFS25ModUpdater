@@ -3,8 +3,8 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Projekt jest na wczesnym etapie rozwoju. Wersja `0.1.0.dev1` jest pierwszym działającym
-> szkieletem i nie jest jeszcze przeznaczona do codziennego użycia bez testów.
+> Wersja `0.0.1a` jest pierwszym wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
 
@@ -74,7 +74,9 @@ Tag `vX.Y.Z` uruchamia budowę:
 Buildy powstają natywnie na odpowiednim systemie przez GitHub Actions.
 
 Workflow można również uruchomić ręcznie bez tworzenia wydania. Commit zawierający w opisie
-`[build]` przygotuje oba pliki jako prywatne artefakty testowe GitHub Actions.
+`[build]` przygotuje oba pliki jako prywatne artefakty testowe GitHub Actions. Commit z
+`[release]` zbuduje pliki, utworzy tag z wersji zapisanej w `pyproject.toml` i opublikuje
+wydanie. Wersje z literowym sufiksem są automatycznie oznaczane jako prerelease.
 
 Na typowym systemie Linux Mint wymagane biblioteki graficzne są już obecne. Jeżeli ręczne
 uruchomienie zgłosi brak `libEGL.so.1`, należy doinstalować systemowy pakiet `libegl1`.

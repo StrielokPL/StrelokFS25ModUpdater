@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "strelok-fs25-mod-updater"
-version = "0.1.0.dev1"
+version = "0.0.1a"
 description = "Graficzny aktualizator modów Farming Simulator 25 wydawanych przez StrelokPL"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,4 +37,3 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-

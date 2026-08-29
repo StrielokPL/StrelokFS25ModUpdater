@@ -1,6 +1,6 @@
 # Historia zmian
 
-## 0.1.0.dev1 — wersja rozwojowa
+## 0.0.1a — pierwsze wydanie alfa
 
 - utworzono działający rdzeń aplikacji i GUI;
 - dodano oficjalny katalog StrelokPL oraz jego zdalne aktualizacje;
@@ -12,4 +12,3 @@
 - dodano kopie zapisów gry dla migracji wysokiego ryzyka;
 - dodano rozróżnienie źródeł oficjalnych i zewnętrznych;
 - dodano automatyczne buildy Windows/Linux i testy CI.
-
