@@ -92,10 +92,15 @@ class CatalogMod:
             raise ValueError(f"Nieprawidłowy identyfikator moda: {self.id}")
         if not self.name.strip():
             raise ValueError("Nazwa moda nie może być pusta")
-        if Path(self.archive_name).name != self.archive_name or not self.archive_name.lower().endswith(".zip"):
+        if (
+            Path(self.archive_name).name != self.archive_name
+            or not self.archive_name.lower().endswith(".zip")
+        ):
             raise ValueError(f"Nieprawidłowa nazwa archiwum: {self.archive_name}")
         if not _REPOSITORY_RE.fullmatch(self.repository):
-            raise ValueError(f"Repozytorium musi mieć format właściciel/nazwa: {self.repository}")
+            raise ValueError(
+                f"Repozytorium musi mieć format właściciel/nazwa: {self.repository}"
+            )
         if not self.asset_pattern.strip():
             raise ValueError("Wzorzec assetu nie może być pusty")
 
@@ -238,4 +243,3 @@ class UpdateCheck:
     state: UpdateState = UpdateState.UNKNOWN
     message: str = ""
     replaced_local_mods: tuple[LocalMod, ...] = field(default_factory=tuple)
-

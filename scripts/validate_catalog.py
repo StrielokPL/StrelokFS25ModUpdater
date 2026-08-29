@@ -32,11 +32,11 @@ def main() -> int:
             f"catalogVersion={catalog.catalog_version}, oczekiwano {arguments.version}"
         )
     print(
-        f"Katalog v{catalog.catalog_version}: {len(catalog.mods)} wpisów, schemat {catalog.schema_version}"
+        f"Katalog v{catalog.catalog_version}: {len(catalog.mods)} wpisów, "
+        f"schemat {catalog.schema_version}"
     )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -54,7 +54,9 @@ class GitHubClient:
             return urllib.request.urlopen(request, timeout=self.timeout)
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
-                raise GitHubError("Repozytorium lub wydanie nie istnieje albo nie jest publiczne") from exc
+                raise GitHubError(
+                    "Repozytorium lub wydanie nie istnieje albo nie jest publiczne"
+                ) from exc
             if exc.code in (403, 429):
                 remaining = exc.headers.get("X-RateLimit-Remaining")
                 if remaining == "0":
@@ -181,4 +183,3 @@ class GitHubClient:
         except BaseException:
             target.unlink(missing_ok=True)
             raise
-

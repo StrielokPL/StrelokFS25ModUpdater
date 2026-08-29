@@ -252,7 +252,8 @@ class MainWindow(QMainWindow):
             "Ważna informacja o nazwach plików",
             "Nie zmieniaj nazw archiwów ZIP zarządzanych przez updater.\n\n"
             "Nazwa archiwum służy do rozpoznawania zainstalowanego moda. Plik o zmienionej "
-            "nazwie może nie zostać rozpoznany, a ponowne pobranie może utworzyć drugą kopię.",
+            "nazwie może nie zostać rozpoznany, a ponowne pobranie może utworzyć "
+            "drugą kopię.",
         )
         self.settings.first_run_warning_seen = True
         self.settings_store.save(self.settings)
@@ -384,10 +385,10 @@ class MainWindow(QMainWindow):
         def work(_signals: TaskSignals):
             return self.update_checks.check_all(self.mods, self.local_mods, channels)
 
-        def success(checks: object) -> None:
-            self._populate_table(checks)  # type: ignore[arg-type]
-            errors = sum(1 for check in checks if check.state is UpdateState.ERROR)  # type: ignore[union-attr]
-            updates = sum(1 for check in checks if check.state in SELECTABLE_STATES)  # type: ignore[union-attr]
+        def success(checks: list[UpdateCheck]) -> None:
+            self._populate_table(checks)
+            errors = sum(1 for check in checks if check.state is UpdateState.ERROR)
+            updates = sum(1 for check in checks if check.state in SELECTABLE_STATES)
             if errors:
                 self._set_status(f"Znaleziono {updates} pozycji; błędy źródeł: {errors}")
             else:
@@ -414,7 +415,11 @@ class MainWindow(QMainWindow):
                 selection.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.table.setItem(row, 0, selection)
 
-            source_text = "✓ StrelokPL" if check.mod.source is SourceKind.OFFICIAL else "⚠ Zewnętrzny"
+            source_text = (
+                "✓ StrelokPL"
+                if check.mod.source is SourceKind.OFFICIAL
+                else "⚠ Zewnętrzny"
+            )
             source_item = QTableWidgetItem(source_text)
             source_item.setForeground(
                 QColor("#2e7d32") if check.mod.source is SourceKind.OFFICIAL else QColor("#b45f06")
@@ -479,7 +484,11 @@ class MainWindow(QMainWindow):
         if check is None:
             self.details.clear()
             return
-        source = "Oficjalny mod StrelokPL" if check.mod.source is SourceKind.OFFICIAL else "Zewnętrzne źródło — brak odpowiedzialności StrelokPL"
+        source = (
+            "Oficjalny mod StrelokPL"
+            if check.mod.source is SourceKind.OFFICIAL
+            else "Zewnętrzne źródło — brak odpowiedzialności StrelokPL"
+        )
         release = check.selected_release or check.stable or check.prerelease
         lines = [
             f"## {check.mod.name}",
@@ -556,11 +565,11 @@ class MainWindow(QMainWindow):
                 events.append(event)
             return events
 
-        def success(events: object) -> None:
+        def success(events: list[dict[str, object]]) -> None:
             QMessageBox.information(
                 self,
                 "Zakończono",
-                f"Pomyślnie zainstalowano lub zaktualizowano {len(events)} pozycji.",  # type: ignore[arg-type]
+                f"Pomyślnie zainstalowano lub zaktualizowano {len(events)} pozycji.",
             )
             self._scan_local()
             self._begin_release_check()
@@ -615,10 +624,15 @@ class MainWindow(QMainWindow):
     def _rollback(self) -> None:
         events = [event for event in reversed(self.history.load()) if event.get("backupDirectory")]
         if not events:
-            QMessageBox.information(self, "Brak kopii", "Nie ma aktualizacji możliwej do cofnięcia.")
+            QMessageBox.information(
+                self,
+                "Brak kopii",
+                "Nie ma aktualizacji możliwej do cofnięcia.",
+            )
             return
         labels = [
-            f"{event.get('timestamp', '')[:19]} — {event.get('archiveName', '')} — {event.get('version', '')}"
+            f"{event.get('timestamp', '')[:19]} — "
+            f"{event.get('archiveName', '')} — {event.get('version', '')}"
             for event in events
         ]
         selected, ok = QInputDialog.getItem(

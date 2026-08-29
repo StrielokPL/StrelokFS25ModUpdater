@@ -75,7 +75,9 @@ def inspect_mod_archive(mod_id: str, path: Path, *, with_hash: bool = False) -> 
     try:
         with zipfile.ZipFile(path) as archive:
             if "modDesc.xml" not in archive.namelist():
-                raise ValueError(f"Archiwum {path.name} nie zawiera modDesc.xml w katalogu głównym")
+                raise ValueError(
+                    f"Archiwum {path.name} nie zawiera modDesc.xml w katalogu głównym"
+                )
             info = archive.getinfo("modDesc.xml")
             if info.file_size > 4 * 1024 * 1024:
                 raise ValueError(f"Plik modDesc.xml w {path.name} jest podejrzanie duży")
@@ -131,4 +133,3 @@ def savegame_directories_for(mods_directory: Path) -> list[Path]:
         for path in profile.iterdir()
         if path.is_dir() and _SAVEGAME_RE.fullmatch(path.name)
     )
-
