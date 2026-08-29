@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": 1,
+  "minimumUpdaterVersion": "0.1.0.dev1",
+  "publishedAt": "2026-08-29",
+  "mods": [
+    {
+      "id": "strelokpl.ursus16541954",
+      "name": "Ursus 1654/1954 Pack",
+      "archiveName": "FS25_Ursus_1654_1954_Pack.zip",
+      "repository": "StrielokPL/Ursus16541954",
+      "assetPattern": "FS25_Ursus_1654_1954_Pack.zip",
+      "status": "active",
+      "description": "Oficjalny pakiet Ursus 1654/1954 wydawany przez StrelokPL."
+    }
+  ]
+}

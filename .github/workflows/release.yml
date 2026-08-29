@@ -1,0 +1,61 @@
+name: Build application release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: StrelokFS25ModUpdater-Windows-x64
+          - os: ubuntu-latest
+            artifact: StrelokFS25ModUpdater-Linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build dependencies
+        run: python -m pip install . pyinstaller
+      - name: Run tests
+        shell: bash
+        run: PYTHONPATH=src python -m unittest discover -v
+      - name: Build executable
+        working-directory: packaging
+        run: pyinstaller --clean --noconfirm StrelokFS25ModUpdater.spec
+      - name: Name Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Move-Item packaging/dist/StrelokFS25ModUpdater.exe packaging/dist/StrelokFS25ModUpdater-Windows-x64.exe
+      - name: Pack Linux executable
+        if: runner.os == 'Linux'
+        run: tar -C packaging/dist -czf packaging/dist/StrelokFS25ModUpdater-Linux-x64.tar.gz StrelokFS25ModUpdater
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            packaging/dist/*.exe
+            packaging/dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/* --generate-notes --verify-tag
+
