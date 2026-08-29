@@ -4,6 +4,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from . import __version__
@@ -36,11 +37,14 @@ def _exception_hook(exc_type, exc_value, exc_traceback) -> None:
 def main() -> int:
     _configure_logging()
     sys.excepthook = _exception_hook
-    application = QApplication(sys.argv)
+    smoke_test = "--smoke-test" in sys.argv
+    qt_arguments = [argument for argument in sys.argv if argument != "--smoke-test"]
+    application = QApplication(qt_arguments)
     application.setApplicationName("Strelok FS25 Mod Updater")
     application.setApplicationVersion(__version__)
     application.setOrganizationName("StrelokPL")
-    window = MainWindow()
+    window = MainWindow(smoke_test=smoke_test)
     window.show()
+    if smoke_test:
+        QTimer.singleShot(750, application.quit)
     return application.exec()
-

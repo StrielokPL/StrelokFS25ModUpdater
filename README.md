@@ -76,6 +76,9 @@ Buildy powstają natywnie na odpowiednim systemie przez GitHub Actions.
 Workflow można również uruchomić ręcznie bez tworzenia wydania. Commit zawierający w opisie
 `[build]` przygotuje oba pliki jako prywatne artefakty testowe GitHub Actions.
 
+Na typowym systemie Linux Mint wymagane biblioteki graficzne są już obecne. Jeżeli ręczne
+uruchomienie zgłosi brak `libEGL.so.1`, należy doinstalować systemowy pakiet `libegl1`.
+
 ## Oficjalny katalog
 
 Katalog startowy znajduje się w

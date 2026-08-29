@@ -139,7 +139,7 @@ class ExternalSourceDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, *, smoke_test: bool = False):
         super().__init__()
         self.setWindowTitle("Strelok FS25 Mod Updater")
         self.resize(1080, 720)
@@ -166,8 +166,9 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._reload_mod_list()
         self._initialise_path()
-        self._show_first_run_warning()
-        QTimer.singleShot(250, self._startup_check)
+        if not smoke_test:
+            self._show_first_run_warning()
+            QTimer.singleShot(250, self._startup_check)
 
     def _build_ui(self) -> None:
         central = QWidget()

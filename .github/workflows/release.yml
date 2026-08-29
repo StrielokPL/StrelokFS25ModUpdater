@@ -41,6 +41,18 @@ jobs:
       - name: Build executable
         working-directory: packaging
         run: pyinstaller --clean --noconfirm StrelokFS25ModUpdater.spec
+      - name: Smoke-test Linux executable
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: packaging/dist/StrelokFS25ModUpdater --smoke-test
+      - name: Smoke-test Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          & packaging/dist/StrelokFS25ModUpdater.exe --smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Name Windows executable
         if: runner.os == 'Windows'
         shell: pwsh

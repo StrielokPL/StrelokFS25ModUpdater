@@ -41,5 +41,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install application with Qt
         run: python -m pip install .
-      - name: Import GUI modules
-        run: python -c "import strelok_fs25_mod_updater.app; import strelok_fs25_mod_updater.gui"
+      - name: Launch GUI smoke test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m strelok_fs25_mod_updater --smoke-test
