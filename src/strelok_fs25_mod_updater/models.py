@@ -40,6 +40,7 @@ class UpdateState(str, Enum):
     CURRENT = "current"
     UPDATE_AVAILABLE = "update_available"
     PRERELEASE_AVAILABLE = "prerelease_available"
+    VERSION_CHANGE = "version_change"
     LOCAL_NEWER = "local_newer"
     MIGRATION_AVAILABLE = "migration_available"
     DISABLED = "disabled"
@@ -239,6 +240,7 @@ class UpdateCheck:
     local: LocalMod | None = None
     stable: ReleaseInfo | None = None
     prerelease: ReleaseInfo | None = None
+    available_releases: tuple[ReleaseInfo, ...] = field(default_factory=tuple)
     selected_release: ReleaseInfo | None = None
     state: UpdateState = UpdateState.UNKNOWN
     message: str = ""

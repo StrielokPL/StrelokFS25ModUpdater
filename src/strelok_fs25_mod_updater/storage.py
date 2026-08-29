@@ -61,16 +61,32 @@ def read_json(path: Path, default: Any) -> Any:
 class AppSettings:
     mods_directory: str = ""
     channels: dict[str, str] = field(default_factory=dict)
+    pinned_versions: dict[str, str] = field(default_factory=dict)
     first_run_warning_seen: bool = False
 
     def channel_for(self, mod_id: str) -> ReleaseChannel:
         try:
-            return ReleaseChannel(self.channels.get(mod_id, ReleaseChannel.STABLE.value))
+            channel = ReleaseChannel(
+                self.channels.get(mod_id, ReleaseChannel.STABLE.value)
+            )
         except ValueError:
             return ReleaseChannel.STABLE
+        if channel is ReleaseChannel.PINNED and not self.pinned_version_for(mod_id):
+            return ReleaseChannel.STABLE
+        return channel
 
     def set_channel(self, mod_id: str, channel: ReleaseChannel) -> None:
         self.channels[mod_id] = channel.value
+
+    def pinned_version_for(self, mod_id: str) -> str:
+        return self.pinned_versions.get(mod_id, "")
+
+    def set_pinned_version(self, mod_id: str, tag: str) -> None:
+        self.channels[mod_id] = ReleaseChannel.PINNED.value
+        self.pinned_versions[mod_id] = tag
+
+    def clear_pinned_version(self, mod_id: str) -> None:
+        self.pinned_versions.pop(mod_id, None)
 
 
 class SettingsStore:
@@ -84,6 +100,10 @@ class SettingsStore:
         return AppSettings(
             mods_directory=str(raw.get("mods_directory", "")),
             channels={str(key): str(value) for key, value in raw.get("channels", {}).items()},
+            pinned_versions={
+                str(key): str(value)
+                for key, value in raw.get("pinned_versions", {}).items()
+            },
             first_run_warning_seen=bool(raw.get("first_run_warning_seen", False)),
         )
 
@@ -125,4 +145,3 @@ class HistoryStore:
     def load(self) -> list[dict[str, Any]]:
         value = read_json(self.path, [])
         return value if isinstance(value, list) else []
-

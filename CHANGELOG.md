@@ -1,5 +1,12 @@
 # Historia zmian
 
+## 0.0.1a2 — wybór konkretnego wydania
+
+- dodano zapamiętywany wybór konkretnego taga wydania osobno dla każdego moda;
+- dodano możliwość świadomego powrotu do starszej wersji;
+- dodano ostrzeżenie o ryzyku dla savegame'u przed instalacją starszego moda;
+- lista wersji rozróżnia pełne wydania i prerelease'y.
+
 ## 0.0.1a1 — poprawka pierwszego uruchomienia
 
 - poprawiono zamykanie aplikacji po zaakceptowaniu pierwszego monitu na Linuksie;

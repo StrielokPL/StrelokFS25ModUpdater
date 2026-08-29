@@ -76,7 +76,35 @@ class UpdateServiceTests(unittest.TestCase):
         self.assertEqual(check.selected_release.tag, "2.0.0.0-P1")
         self.assertEqual(check.state, UpdateState.PRERELEASE_AVAILABLE)
 
+    def test_pinned_release_can_select_an_older_version(self) -> None:
+        service = UpdateCheckService(
+            FakeReleaseClient([release("1.0.0.0"), release("2.0.0.0")])
+        )
+        check = service.check_all(
+            (self.mod,),
+            {self.mod.id: self.local("2.0.0.0")},
+            {self.mod.id: ReleaseChannel.PINNED},
+            {self.mod.id: "1.0.0.0"},
+        )[0]
+        self.assertEqual(check.selected_release.tag, "1.0.0.0")
+        self.assertEqual(check.state, UpdateState.VERSION_CHANGE)
+        self.assertEqual(
+            [item.tag for item in check.available_releases],
+            ["2.0.0.0", "1.0.0.0"],
+        )
+
+    def test_missing_pinned_release_is_an_error(self) -> None:
+        service = UpdateCheckService(FakeReleaseClient([release("2.0.0.0")]))
+        check = service.check_all(
+            (self.mod,),
+            {},
+            {self.mod.id: ReleaseChannel.PINNED},
+            {self.mod.id: "1.0.0.0"},
+        )[0]
+        self.assertIsNone(check.selected_release)
+        self.assertEqual(check.state, UpdateState.ERROR)
+        self.assertIn("1.0.0.0", check.message)
+
 
 if __name__ == "__main__":
     unittest.main()
-

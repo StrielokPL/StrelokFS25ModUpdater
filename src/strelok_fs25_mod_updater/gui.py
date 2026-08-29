@@ -55,18 +55,13 @@ from .task import Task, TaskSignals
 from .update_service import UpdateCheckService
 
 
-CHANNEL_LABELS = {
-    ReleaseChannel.STABLE: "Stabilny",
-    ReleaseChannel.PRERELEASE: "Testowy",
-    ReleaseChannel.DISABLED: "Wyłączony",
-}
-
 STATE_LABELS = {
     UpdateState.UNKNOWN: "Nie sprawdzono",
     UpdateState.NOT_INSTALLED: "Do pobrania",
     UpdateState.CURRENT: "Aktualny",
     UpdateState.UPDATE_AVAILABLE: "Aktualizacja",
     UpdateState.PRERELEASE_AVAILABLE: "Wersja testowa",
+    UpdateState.VERSION_CHANGE: "Zmiana wersji",
     UpdateState.LOCAL_NEWER: "Lokalny nowszy",
     UpdateState.MIGRATION_AVAILABLE: "Migracja paczki",
     UpdateState.DISABLED: "Nieaktywny",
@@ -77,6 +72,7 @@ SELECTABLE_STATES = {
     UpdateState.NOT_INSTALLED,
     UpdateState.UPDATE_AVAILABLE,
     UpdateState.PRERELEASE_AVAILABLE,
+    UpdateState.VERSION_CHANGE,
     UpdateState.MIGRATION_AVAILABLE,
 }
 
@@ -220,7 +216,7 @@ class MainWindow(QMainWindow):
                 "Zainstalowana",
                 "Stabilna",
                 "Testowa",
-                "Kanał",
+                "Kanał / wersja",
                 "Stan",
             ]
         )
@@ -384,10 +380,18 @@ class MainWindow(QMainWindow):
     def _begin_release_check(self) -> None:
         self._scan_local()
         channels = {mod.id: self.settings.channel_for(mod.id) for mod in self.mods}
+        pinned_versions = {
+            mod.id: self.settings.pinned_version_for(mod.id) for mod in self.mods
+        }
         self._set_status("Sprawdzanie wydań modów na GitHubie…")
 
         def work(_signals: TaskSignals):
-            return self.update_checks.check_all(self.mods, self.local_mods, channels)
+            return self.update_checks.check_all(
+                self.mods,
+                self.local_mods,
+                channels,
+                pinned_versions,
+            )
 
         def success(checks: list[UpdateCheck]) -> None:
             self._populate_table(checks)
@@ -449,15 +453,42 @@ class MainWindow(QMainWindow):
             )
 
             channel = QComboBox()
-            for value, label in CHANNEL_LABELS.items():
-                channel.addItem(label, value.value)
+            channel.addItem(
+                "Automatycznie — stabilne",
+                f"channel:{ReleaseChannel.STABLE.value}",
+            )
+            channel.addItem(
+                "Automatycznie — stabilne i testowe",
+                f"channel:{ReleaseChannel.PRERELEASE.value}",
+            )
+            for release in check.available_releases:
+                suffix = " (prerelease)" if release.prerelease else ""
+                channel.addItem(
+                    f"Wersja {release.tag}{suffix}",
+                    f"release:{release.tag}",
+                )
+            channel.addItem(
+                "Wyłączone",
+                f"channel:{ReleaseChannel.DISABLED.value}",
+            )
             selected_channel = self.settings.channel_for(check.mod.id)
-            index = channel.findData(selected_channel.value)
+            pinned_tag = self.settings.pinned_version_for(check.mod.id)
+            if selected_channel is ReleaseChannel.PINNED and pinned_tag:
+                selected_data = f"release:{pinned_tag}"
+                if channel.findData(selected_data) < 0:
+                    channel.insertItem(
+                        channel.count() - 1,
+                        f"Niedostępna wersja {pinned_tag}",
+                        selected_data,
+                    )
+            else:
+                selected_data = f"channel:{selected_channel.value}"
+            index = channel.findData(selected_data)
             channel.setCurrentIndex(max(index, 0))
             channel.setEnabled(check.mod.status is ModStatus.ACTIVE)
             channel.currentIndexChanged.connect(
-                lambda _index, mod_id=check.mod.id, widget=channel: self._channel_changed(
-                    mod_id, widget
+                lambda _index, mod_id=check.mod.id, widget=channel: (
+                    self._release_selection_changed(mod_id, widget)
                 )
             )
             self.table.setCellWidget(row, 6, channel)
@@ -475,9 +506,15 @@ class MainWindow(QMainWindow):
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setStretchLastSection(True)
 
-    def _channel_changed(self, mod_id: str, combo: QComboBox) -> None:
-        channel = ReleaseChannel(str(combo.currentData()))
-        self.settings.set_channel(mod_id, channel)
+    def _release_selection_changed(self, mod_id: str, combo: QComboBox) -> None:
+        kind, _, value = str(combo.currentData()).partition(":")
+        if kind == "release" and value:
+            self.settings.set_pinned_version(mod_id, value)
+        elif kind == "channel":
+            self.settings.set_channel(mod_id, ReleaseChannel(value))
+            self.settings.clear_pinned_version(mod_id)
+        else:
+            return
         self.settings_store.save(self.settings)
         QTimer.singleShot(0, self._begin_release_check)
 
@@ -527,6 +564,33 @@ class MainWindow(QMainWindow):
         if mods_directory is None or not mods_directory.is_dir():
             QMessageBox.warning(self, "Brak folderu", "Najpierw wskaż istniejący folder modów.")
             return
+
+        downgrades = [
+            check
+            for check in selected
+            if check.local
+            and check.selected_release
+            and check.selected_release.version < check.local.version
+        ]
+        if downgrades:
+            changes = "\n".join(
+                f"• {check.mod.name}: {check.local.version_text} → "
+                f"{check.selected_release.tag}"
+                for check in downgrades
+                if check.local and check.selected_release
+            )
+            answer = QMessageBox.warning(
+                self,
+                "Instalacja starszej wersji",
+                "Wybrano zmianę na starszą wersję:\n\n"
+                f"{changes}\n\n"
+                "Updater wykona kopię obecnego archiwum, ale starszy mod może nie być "
+                "zgodny z aktualnym zapisem gry. Czy kontynuować?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
 
         migrations = [check for check in selected if check.replaced_local_mods]
         if migrations:

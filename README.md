@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a1` jest pierwszym wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a2` jest pierwszym wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -12,6 +12,7 @@ Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 - osobne i wyraźnie oznaczone zewnętrzne repozytoria użytkownika;
 - pełne wydania oraz prerelease'y GitHub Releases;
 - kanał stabilny lub testowy wybierany osobno dla każdego moda;
+- wybór konkretnego wydania, również świadoma instalacja starszej wersji z ostrzeżeniem;
 - odczyt wersji bezpośrednio z `modDesc.xml` w archiwum ZIP;
 - ścisłe rozpoznawanie moda po niezmienionej nazwie archiwum;
 - automatyczne wykrywanie typowych folderów FS25 oraz ręczny wybór ścieżki;

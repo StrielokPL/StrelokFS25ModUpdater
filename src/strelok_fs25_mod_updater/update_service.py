@@ -27,7 +27,9 @@ class UpdateCheckService:
         mods: tuple[CatalogMod, ...],
         local_mods: dict[str, LocalMod],
         channels: dict[str, ReleaseChannel],
+        pinned_versions: dict[str, str] | None = None,
     ) -> list[UpdateCheck]:
+        pinned_versions = pinned_versions or {}
         result: list[UpdateCheck] = []
         for mod in mods:
             local = local_mods.get(mod.id)
@@ -56,20 +58,35 @@ class UpdateCheckService:
                 result.append(check)
                 continue
 
+            check.available_releases = tuple(
+                sorted(
+                    releases,
+                    key=lambda item: (item.version, item.published_at),
+                    reverse=True,
+                )
+            )
             check.stable = _latest(item for item in releases if not item.prerelease)
             check.prerelease = _latest(item for item in releases if item.prerelease)
-            check.selected_release = self._select_release(check, channel)
+            check.selected_release = self._select_release(
+                check,
+                channel,
+                pinned_versions.get(mod.id, ""),
+            )
 
             if replaced and check.selected_release:
                 check.state = UpdateState.MIGRATION_AVAILABLE
                 names = ", ".join(item.path.name for item in replaced)
                 check.message = f"Migracja zastępuje: {names}"
+            elif check.selected_release is None:
+                check.state = UpdateState.ERROR
+                if channel is ReleaseChannel.PINNED:
+                    pinned = pinned_versions.get(mod.id, "")
+                    check.message = f"Wybrane wydanie {pinned or '—'} nie jest dostępne"
+                else:
+                    check.message = "Nie znaleziono pasującego archiwum w wydaniach"
             elif local is None:
                 check.state = UpdateState.NOT_INSTALLED
                 check.message = "Mod nie jest zainstalowany"
-            elif check.selected_release is None:
-                check.state = UpdateState.ERROR
-                check.message = "Nie znaleziono pasującego archiwum w wydaniach"
             elif check.selected_release.version > local.version:
                 check.state = (
                     UpdateState.PRERELEASE_AVAILABLE
@@ -81,17 +98,33 @@ class UpdateCheckService:
                 check.state = UpdateState.CURRENT
                 check.message = "Zainstalowana jest najnowsza wybrana wersja"
             else:
-                check.state = UpdateState.LOCAL_NEWER
-                check.message = "Wersja lokalna jest nowsza od wybranego kanału"
+                if channel is ReleaseChannel.PINNED:
+                    check.state = UpdateState.VERSION_CHANGE
+                    check.message = (
+                        f"Wybrano starszą wersję {check.selected_release.tag}; "
+                        "przed zmianą powstanie kopia"
+                    )
+                else:
+                    check.state = UpdateState.LOCAL_NEWER
+                    check.message = "Wersja lokalna jest nowsza od wybranego kanału"
             result.append(check)
         return result
 
     @staticmethod
-    def _select_release(check: UpdateCheck, channel: ReleaseChannel) -> ReleaseInfo | None:
+    def _select_release(
+        check: UpdateCheck,
+        channel: ReleaseChannel,
+        pinned_tag: str,
+    ) -> ReleaseInfo | None:
         if channel is ReleaseChannel.STABLE:
             return check.stable
         if channel is ReleaseChannel.PRERELEASE:
             return _latest(item for item in (check.stable, check.prerelease) if item)
+        if channel is ReleaseChannel.PINNED:
+            return next(
+                (item for item in check.available_releases if item.tag == pinned_tag),
+                None,
+            )
         return None
 
     @staticmethod
@@ -103,4 +136,3 @@ class UpdateCheckService:
         if mod.status is ModStatus.ARCHIVED:
             return "Mod został zarchiwizowany"
         return "Mod jest obecnie niedostępny"
-
