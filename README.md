@@ -73,6 +73,9 @@ Tag `vX.Y.Z` uruchamia budowę:
 
 Buildy powstają natywnie na odpowiednim systemie przez GitHub Actions.
 
+Workflow można również uruchomić ręcznie bez tworzenia wydania. Commit zawierający w opisie
+`[build]` przygotuje oba pliki jako prywatne artefakty testowe GitHub Actions.
+
 ## Oficjalny katalog
 
 Katalog startowy znajduje się w
@@ -96,4 +99,3 @@ Pełny opis formatu i migracji znajduje się w [docs/CATALOG.md](docs/CATALOG.md
 - błędne pobranie nie powinno naruszyć istniejącego moda;
 - zewnętrzne źródła nie mogą nadać sobie statusu oficjalnego;
 - aktualizacja oficjalnego katalogu nie usuwa ustawień ani zewnętrznych repozytoriów użytkownika.
-
