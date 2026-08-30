@@ -120,7 +120,8 @@ class ApplicationUpdateTests(unittest.TestCase):
             prepared = service.prepare(update)
 
             self.assertEqual(prepared.staged_path.read_bytes(), b"new executable")
-            self.assertTrue(prepared.staged_path.stat().st_mode & stat.S_IXUSR)
+            if os.name != "nt":
+                self.assertTrue(prepared.staged_path.stat().st_mode & stat.S_IXUSR)
             self.assertEqual(current.read_bytes(), b"old executable")
 
     def test_linux_archive_must_contain_expected_binary(self) -> None:
