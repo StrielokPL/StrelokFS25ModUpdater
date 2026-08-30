@@ -74,6 +74,25 @@ class UpdateServiceTests(unittest.TestCase):
         self.assertEqual(check.selected_release.tag, "1.1.0.0")
         self.assertEqual(check.state, UpdateState.UPDATE_AVAILABLE)
 
+    def test_stable_channel_explains_when_only_prereleases_exist(self) -> None:
+        service = UpdateCheckService(
+            FakeReleaseClient(
+                [release("1.0.0.0-P1", True), release("1.0.0.0-P2", True)]
+            )
+        )
+
+        check = service.check_all(
+            (self.mod,),
+            {},
+            {self.mod.id: ReleaseChannel.STABLE},
+        )[0]
+
+        self.assertIsNone(check.selected_release)
+        self.assertEqual(check.state, UpdateState.ERROR)
+        self.assertIn("Brak stabilnego wydania", check.message)
+        self.assertIn("1.0.0.0-P2", check.message)
+        self.assertIn("stabilne i testowe", check.message)
+
     def test_test_channel_selects_newest_version(self) -> None:
         service = UpdateCheckService(
             FakeReleaseClient([release("1.1.0.0"), release("2.0.0.0-P1", True)])

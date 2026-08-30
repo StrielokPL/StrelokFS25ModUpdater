@@ -117,6 +117,12 @@ class UpdateCheckService:
                 if channel is ReleaseChannel.PINNED:
                     pinned = pinned_versions.get(mod.id, "")
                     check.message = f"Wybrane wydanie {pinned or '—'} nie jest dostępne"
+                elif channel is ReleaseChannel.STABLE and check.prerelease:
+                    check.message = (
+                        "Brak stabilnego wydania. Dostępne są tylko wersje testowe "
+                        f"(najnowsza: {check.prerelease.tag}). Zmień kanał na „stabilne "
+                        "i testowe” albo wybierz konkretną wersję"
+                    )
                 else:
                     check.message = "Nie znaleziono pasującego archiwum w wydaniach"
             elif local is None:

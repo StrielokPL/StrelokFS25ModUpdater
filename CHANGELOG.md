@@ -1,5 +1,10 @@
 # Historia zmian
 
+## 0.0.1a8 — czytelniejszy brak stabilnego wydania
+
+- gdy repo zawiera wyłącznie prerelease'y, aplikacja pokazuje najnowszą wersję testową;
+- komunikat podpowiada zmianę kanału na stabilny i testowy albo wybór konkretnej wersji.
+
 ## 0.0.1a7 — identyfikacja autora i tytułu moda
 
 - dodano odczyt autora i angielskiego tytułu z `modDesc.xml` niezależnie od numerów linii;
