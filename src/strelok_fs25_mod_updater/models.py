@@ -42,6 +42,8 @@ class UpdateState(str, Enum):
     PRERELEASE_AVAILABLE = "prerelease_available"
     VERSION_CHANGE = "version_change"
     LOCAL_NEWER = "local_newer"
+    UNMANAGED_REPLACEABLE = "unmanaged_replaceable"
+    ARCHIVE_CONFLICT = "archive_conflict"
     MIGRATION_AVAILABLE = "migration_available"
     DISABLED = "disabled"
     ERROR = "error"
@@ -84,6 +86,7 @@ class CatalogMod:
     source: SourceKind = SourceKind.OFFICIAL
     status: ModStatus = ModStatus.ACTIVE
     description: str = ""
+    mod_desc_titles: tuple[str, ...] = ()
     replaces: tuple[str, ...] = ()
     replacement_id: str | None = None
     migration: MigrationSpec | None = None
@@ -122,6 +125,11 @@ class CatalogMod:
             source=source,
             status=ModStatus(str(data.get("status", ModStatus.ACTIVE.value))),
             description=str(data.get("description", "")),
+            mod_desc_titles=tuple(
+                str(item).strip()
+                for item in data.get("modDescTitles", [])
+                if str(item).strip()
+            ),
             replaces=tuple(str(item) for item in data.get("replaces", [])),
             replacement_id=(
                 str(data["replacementId"]) if data.get("replacementId") else None
@@ -140,6 +148,8 @@ class CatalogMod:
         }
         if self.description:
             result["description"] = self.description
+        if self.mod_desc_titles:
+            result["modDescTitles"] = list(self.mod_desc_titles)
         if self.replaces:
             result["replaces"] = list(self.replaces)
         if self.replacement_id:
@@ -211,6 +221,12 @@ class OfficialCatalog:
         return {mod.id: mod for mod in self.mods}
 
 
+class LocalModKind(str, Enum):
+    MANAGED = "managed"
+    UNMANAGED_REPLACEABLE = "unmanaged_replaceable"
+    ARCHIVE_CONFLICT = "archive_conflict"
+
+
 @dataclass(frozen=True)
 class LocalMod:
     mod_id: str
@@ -218,6 +234,9 @@ class LocalMod:
     version_text: str
     version: ModVersion
     sha256: str | None = None
+    author: str = ""
+    title: str = ""
+    kind: LocalModKind = LocalModKind.MANAGED
 
 
 @dataclass(frozen=True)

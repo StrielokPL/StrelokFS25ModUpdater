@@ -1,5 +1,14 @@
 # Historia zmian
 
+## 0.0.1a7 — identyfikacja autora i tytułu moda
+
+- dodano odczyt autora i angielskiego tytułu z `modDesc.xml` niezależnie od numerów linii;
+- oficjalne mody są rozpoznawane po zgodnym tytule i pozycji `StrielokPL` na liście autorów;
+- zgodny oryginalny mod innego autora można zastąpić wydaniem StrelokPL po ostrzeżeniu;
+- przed zastąpieniem oryginału wykonywana jest kopia dotychczasowego archiwum;
+- niezgodny tytuł przy tej samej nazwie ZIP blokuje automatyczną podmianę;
+- pobrane oficjalne wydania są dodatkowo sprawdzane pod kątem autora i tytułu.
+
 ## 0.0.1a6 — bezpieczniejsza aktualizacja Windows
 
 - usunięto aktualizację opartą na ukrytym PowerShellu i `ExecutionPolicy Bypass`;

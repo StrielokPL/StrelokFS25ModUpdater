@@ -5,6 +5,7 @@ import unittest
 from strelok_fs25_mod_updater.models import (
     CatalogMod,
     LocalMod,
+    LocalModKind,
     ReleaseChannel,
     ReleaseInfo,
     UpdateState,
@@ -44,12 +45,21 @@ class UpdateServiceTests(unittest.TestCase):
             asset_pattern="FS25_Test.zip",
         )
 
-    def local(self, version: str) -> LocalMod:
+    def local(
+        self,
+        version: str,
+        *,
+        kind: LocalModKind = LocalModKind.MANAGED,
+        author: str = "StrielokPL",
+    ) -> LocalMod:
         return LocalMod(
             mod_id=self.mod.id,
             path=__import__("pathlib").Path("FS25_Test.zip"),
             version_text=version,
             version=ModVersion.parse(version),
+            author=author,
+            title="Test mod",
+            kind=kind,
         )
 
     def test_stable_channel_ignores_prerelease(self) -> None:
@@ -120,6 +130,35 @@ class UpdateServiceTests(unittest.TestCase):
         self.assertIn("1/1", statuses[0])
         self.assertIn(self.mod.name, statuses[0])
         self.assertIn(self.mod.repository, statuses[0])
+
+    def test_unmanaged_original_can_be_replaced_even_when_version_is_higher(self) -> None:
+        service = UpdateCheckService(FakeReleaseClient([release("1.0.0.0")]))
+        local = self.local(
+            "9.9.9.9",
+            kind=LocalModKind.UNMANAGED_REPLACEABLE,
+            author="Speedy, Miziuu",
+        )
+
+        check = service.check_all(
+            (self.mod,),
+            {self.mod.id: local},
+            {self.mod.id: ReleaseChannel.STABLE},
+        )[0]
+
+        self.assertEqual(check.state, UpdateState.UNMANAGED_REPLACEABLE)
+        self.assertIn("Speedy, Miziuu", check.message)
+
+    def test_title_conflict_blocks_replacement(self) -> None:
+        service = UpdateCheckService(FakeReleaseClient([release("2.0.0.0")]))
+        local = self.local("1.0.0.0", kind=LocalModKind.ARCHIVE_CONFLICT)
+
+        check = service.check_all(
+            (self.mod,),
+            {self.mod.id: local},
+            {self.mod.id: ReleaseChannel.STABLE},
+        )[0]
+
+        self.assertEqual(check.state, UpdateState.ARCHIVE_CONFLICT)
 
 
 if __name__ == "__main__":

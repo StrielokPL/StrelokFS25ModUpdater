@@ -46,6 +46,20 @@ class CatalogTests(unittest.TestCase):
         catalog = CatalogManager.bundled_catalog()
         self.assertTrue(CatalogManager.is_compatible(catalog))
         self.assertEqual(catalog.mods[0].id, "strelokpl.ursus16541954")
+        self.assertEqual(
+            catalog.mods[0].mod_desc_titles,
+            ("Ursus 1654-1954 Pack",),
+        )
+
+    def test_mod_desc_titles_survive_catalog_round_trip(self) -> None:
+        data = catalog_data()
+        data["mods"][2]["modDescTitles"] = ["Pack title", "Legacy title"]
+        catalog = OfficialCatalog.from_dict(data)
+
+        self.assertEqual(
+            catalog.to_dict()["mods"][2]["modDescTitles"],
+            ["Pack title", "Legacy title"],
+        )
 
     def test_merge_relationship_is_loaded(self) -> None:
         catalog = OfficialCatalog.from_dict(catalog_data())
@@ -68,4 +82,3 @@ class CatalogTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

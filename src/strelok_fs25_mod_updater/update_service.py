@@ -7,6 +7,7 @@ from .github_client import GitHubClient, GitHubError
 from .models import (
     CatalogMod,
     LocalMod,
+    LocalModKind,
     ModStatus,
     ReleaseChannel,
     ReleaseInfo,
@@ -47,13 +48,17 @@ class UpdateCheckService:
             )
             channel = channels.get(mod.id, ReleaseChannel.STABLE)
             logger.info(
-                "MOD CHECK ITEM index=%d total=%d mod_id=%s repository=%s channel=%s local=%s",
+                "MOD CHECK ITEM index=%d total=%d mod_id=%s repository=%s channel=%s "
+                "local=%s local_kind=%s local_author=%s local_title=%s",
                 index,
                 len(mods),
                 mod.id,
                 mod.repository,
                 channel.value,
                 local.version_text if local else "not-installed",
+                local.kind.value if local else "none",
+                local.author if local else "none",
+                local.title if local else "none",
             )
             check = UpdateCheck(mod=mod, local=local, replaced_local_mods=replaced)
 
@@ -97,7 +102,13 @@ class UpdateCheckService:
                 pinned_versions.get(mod.id, ""),
             )
 
-            if replaced and check.selected_release:
+            if local and local.kind is LocalModKind.ARCHIVE_CONFLICT:
+                check.state = UpdateState.ARCHIVE_CONFLICT
+                check.message = (
+                    "Nazwa archiwum pasuje, ale tytuł w modDesc.xml nie odpowiada "
+                    "oficjalnemu modowi; automatyczna podmiana została zablokowana"
+                )
+            elif replaced and check.selected_release:
                 check.state = UpdateState.MIGRATION_AVAILABLE
                 names = ", ".join(item.path.name for item in replaced)
                 check.message = f"Migracja zastępuje: {names}"
@@ -111,6 +122,12 @@ class UpdateCheckService:
             elif local is None:
                 check.state = UpdateState.NOT_INSTALLED
                 check.message = "Mod nie jest zainstalowany"
+            elif local.kind is LocalModKind.UNMANAGED_REPLACEABLE:
+                check.state = UpdateState.UNMANAGED_REPLACEABLE
+                author = local.author or "nieznany autor"
+                check.message = (
+                    f"Oryginalny mod ({author}) może zostać zastąpiony wydaniem StrelokPL"
+                )
             elif check.selected_release.version > local.version:
                 check.state = (
                     UpdateState.PRERELEASE_AVAILABLE

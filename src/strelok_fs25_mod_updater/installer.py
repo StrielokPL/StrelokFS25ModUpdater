@@ -10,7 +10,7 @@ from typing import Callable
 
 from .fs25 import inspect_mod_archive, savegame_directories_for, sha256_file
 from .github_client import GitHubClient
-from .models import CatalogMod, LocalMod, ReleaseInfo
+from .models import CatalogMod, LocalMod, LocalModKind, ReleaseInfo, SourceKind
 from .storage import HistoryStore, data_dir
 
 
@@ -92,10 +92,27 @@ class ModInstaller:
 
         try:
             self.client.download(release.download_url, temporary, progress=progress)
-            downloaded = inspect_mod_archive(mod.id, temporary, with_hash=True)
+            downloaded = inspect_mod_archive(
+                mod.id,
+                temporary,
+                with_hash=True,
+                catalog_mod=mod,
+            )
             if downloaded.version != release.version:
                 raise InstallError(
                     "Wersja w modDesc.xml pobranego archiwum nie odpowiada tagowi wydania"
+                )
+            if (
+                mod.source is SourceKind.OFFICIAL
+                and mod.mod_desc_titles
+                and downloaded.kind is not LocalModKind.MANAGED
+            ):
+                if downloaded.kind is LocalModKind.ARCHIVE_CONFLICT:
+                    raise InstallError(
+                        "Tytuł w modDesc.xml pobranego archiwum nie odpowiada katalogowi"
+                    )
+                raise InstallError(
+                    "Pobrane oficjalne archiwum nie zawiera autora StrelokPL w modDesc.xml"
                 )
             self._verify_digest(temporary, release.digest)
 

@@ -39,6 +39,7 @@ from .github_client import GitHubClient
 from .installer import ModInstaller
 from .models import (
     CatalogMod,
+    LocalModKind,
     ModStatus,
     ReleaseChannel,
     SourceKind,
@@ -71,6 +72,8 @@ STATE_LABELS = {
     UpdateState.PRERELEASE_AVAILABLE: "Wersja testowa",
     UpdateState.VERSION_CHANGE: "Zmiana wersji",
     UpdateState.LOCAL_NEWER: "Lokalny nowszy",
+    UpdateState.UNMANAGED_REPLACEABLE: "Oryginał do zastąpienia",
+    UpdateState.ARCHIVE_CONFLICT: "Konflikt archiwum",
     UpdateState.MIGRATION_AVAILABLE: "Migracja paczki",
     UpdateState.DISABLED: "Nieaktywny",
     UpdateState.ERROR: "Błąd",
@@ -81,6 +84,7 @@ SELECTABLE_STATES = {
     UpdateState.UPDATE_AVAILABLE,
     UpdateState.PRERELEASE_AVAILABLE,
     UpdateState.VERSION_CHANGE,
+    UpdateState.UNMANAGED_REPLACEABLE,
     UpdateState.MIGRATION_AVAILABLE,
 }
 
@@ -347,7 +351,17 @@ class MainWindow(QMainWindow):
             if mod.status is not ModStatus.ACTIVE:
                 check.state = UpdateState.DISABLED
             elif check.local:
-                check.message = "Oczekuje na sprawdzenie GitHuba"
+                if check.local.kind is LocalModKind.ARCHIVE_CONFLICT:
+                    check.state = UpdateState.ARCHIVE_CONFLICT
+                    check.message = (
+                        "Tytuł w modDesc.xml nie odpowiada wpisowi oficjalnego katalogu"
+                    )
+                elif check.local.kind is LocalModKind.UNMANAGED_REPLACEABLE:
+                    check.message = (
+                        "Wykryto oryginalny mod; oczekuje na sprawdzenie GitHuba"
+                    )
+                else:
+                    check.message = "Oczekuje na sprawdzenie GitHuba"
             else:
                 check.state = UpdateState.NOT_INSTALLED
                 check.message = "Mod nie jest zainstalowany"
@@ -635,7 +649,7 @@ class MainWindow(QMainWindow):
                 state_item.setForeground(QColor("#c75b00"))
             elif check.state is UpdateState.CURRENT:
                 state_item.setForeground(QColor("#2e7d32"))
-            elif check.state is UpdateState.ERROR:
+            elif check.state in {UpdateState.ERROR, UpdateState.ARCHIVE_CONFLICT}:
                 state_item.setForeground(QColor("#b00020"))
             self.table.setItem(row, 7, state_item)
 
@@ -675,6 +689,19 @@ class MainWindow(QMainWindow):
             f"**Archiwum:** `{check.mod.archive_name}`",
             f"**Stan:** {STATE_LABELS[check.state]} — {check.message}",
         ]
+        if check.local:
+            ownership = {
+                LocalModKind.MANAGED: "zarządzany",
+                LocalModKind.UNMANAGED_REPLACEABLE: "oryginalny — możliwy do zastąpienia",
+                LocalModKind.ARCHIVE_CONFLICT: "konflikt — podmiana zablokowana",
+            }[check.local.kind]
+            lines.extend(
+                [
+                    f"**Autor lokalnego moda:** {check.local.author or '—'}",
+                    f"**Tytuł lokalnego moda:** {check.local.title or '—'}",
+                    f"**Identyfikacja:** {ownership}",
+                ]
+            )
         if check.mod.description:
             lines.extend(["", check.mod.description])
         if release:
@@ -701,10 +728,37 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Brak folderu", "Najpierw wskaż istniejący folder modów.")
             return
 
+        replacements = [
+            check
+            for check in selected
+            if check.local
+            and check.local.kind is LocalModKind.UNMANAGED_REPLACEABLE
+        ]
+        if replacements:
+            changes = "\n".join(
+                f"• {check.mod.name}: {check.local.author or 'nieznany autor'}"
+                for check in replacements
+                if check.local
+            )
+            answer = QMessageBox.warning(
+                self,
+                "Zastąpienie oryginalnego moda",
+                "Wybrane pliki mają zgodny tytuł, ale nie są wydaniem StrelokPL:\n\n"
+                f"{changes}\n\n"
+                "Updater wykona kopię obecnego archiwum, a następnie zastąpi je "
+                "wydaniem StrelokPL. Zmiana może wpłynąć na sprzęt w savegame. "
+                "Czy kontynuować?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
         downgrades = [
             check
             for check in selected
             if check.local
+            and check.local.kind is LocalModKind.MANAGED
             and check.selected_release
             and check.selected_release.version < check.local.version
         ]

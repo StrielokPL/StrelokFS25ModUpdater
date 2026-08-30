@@ -5,13 +5,20 @@ import zipfile
 from pathlib import Path
 
 
-def make_mod_zip(path: Path, version: str, *, extra: dict[str, str] | None = None) -> Path:
+def make_mod_zip(
+    path: Path,
+    version: str,
+    *,
+    author: str = "Test",
+    title: str = "Test mod",
+    extra: dict[str, str] | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     mod_desc = f"""<?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="96">
-    <author>Test</author>
+    <author>{author}</author>
     <version>{version}</version>
-    <title><en>Test mod</en></title>
+    <title><en>{title}</en></title>
 </modDesc>
 """
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -30,4 +37,3 @@ class FakeGitHubClient:
         if progress:
             size = target.stat().st_size
             progress(size, size)
-

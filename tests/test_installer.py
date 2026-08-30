@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from strelok_fs25_mod_updater.fs25 import inspect_mod_archive
-from strelok_fs25_mod_updater.installer import ModInstaller
+from strelok_fs25_mod_updater.installer import InstallError, ModInstaller
 from strelok_fs25_mod_updater.models import CatalogMod, ReleaseInfo
 from strelok_fs25_mod_updater.storage import HistoryStore
 from strelok_fs25_mod_updater.versioning import ModVersion
@@ -102,7 +102,63 @@ class InstallerTests(unittest.TestCase):
             self.assertFalse((mods / pack.archive_name).exists())
             self.assertEqual((save / "vehicles.xml").read_text(encoding="utf-8"), "before")
 
+    def test_official_download_requires_matching_title_and_strelokpl_author(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mods = root / "mods"
+            source = make_mod_zip(
+                root / "release.zip",
+                "1.0.0.0",
+                author="Speedy, Miziuu",
+                title="Ursus C-330/330M",
+            )
+            mod = CatalogMod(
+                id="strelokpl.test",
+                name="Test",
+                archive_name="FS25_Test.zip",
+                repository="StrielokPL/Test",
+                asset_pattern="FS25_Test.zip",
+                mod_desc_titles=("Ursus C-330/330M",),
+            )
+            installer = ModInstaller(
+                FakeGitHubClient(source),
+                HistoryStore(root / "history.json"),
+                root / "backups",
+            )
+
+            with self.assertRaisesRegex(InstallError, "autora StrelokPL"):
+                installer.install(mod, release("1.0.0.0", mod.archive_name), mods)
+
+            self.assertFalse((mods / mod.archive_name).exists())
+
+    def test_official_download_accepts_strelokpl_in_author_list(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mods = root / "mods"
+            source = make_mod_zip(
+                root / "release.zip",
+                "1.0.0.0",
+                author="M8E, StrielokPL",
+                title="Ursus 1654-1954 Pack",
+            )
+            mod = CatalogMod(
+                id="strelokpl.ursus",
+                name="Ursus",
+                archive_name="FS25_Ursus.zip",
+                repository="StrielokPL/Ursus",
+                asset_pattern="FS25_Ursus.zip",
+                mod_desc_titles=("Ursus 1654-1954 Pack",),
+            )
+            installer = ModInstaller(
+                FakeGitHubClient(source),
+                HistoryStore(root / "history.json"),
+                root / "backups",
+            )
+
+            installer.install(mod, release("1.0.0.0", mod.archive_name), mods)
+
+            self.assertTrue((mods / mod.archive_name).exists())
+
 
 if __name__ == "__main__":
     unittest.main()
-
