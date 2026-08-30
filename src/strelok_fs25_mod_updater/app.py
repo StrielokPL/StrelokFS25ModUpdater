@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import faulthandler
 import gc
 import logging
 import os
+import platform
 import sys
 import tempfile
+import threading
 import time
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from typing import Any, TextIO
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QMessageLogContext, QtMsgType, QTimer, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from . import __version__
@@ -17,7 +22,10 @@ from .self_update import cleanup_previous_executable
 from .storage import data_dir
 
 
-def _configure_logging() -> None:
+_fatal_log_stream: TextIO | None = None
+
+
+def _configure_logging() -> Path:
     target = data_dir() / "strelok-fs25-mod-updater.log"
     target.parent.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(
@@ -27,16 +35,64 @@ def _configure_logging() -> None:
         encoding="utf-8",
     )
     handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        logging.Formatter(
+            "%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"
+        )
     )
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
+    return target
+
+
+def _configure_fatal_logging() -> Path | None:
+    global _fatal_log_stream
+    target = data_dir() / "strelok-fs25-mod-updater-fatal.log"
+    try:
+        _fatal_log_stream = target.open("a", encoding="utf-8")
+        _fatal_log_stream.write(
+            f"\n--- application start {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n"
+        )
+        _fatal_log_stream.flush()
+        faulthandler.enable(file=_fatal_log_stream, all_threads=True)
+    except (OSError, RuntimeError):
+        logging.getLogger(__name__).exception("Nie udało się włączyć logu awarii natywnych")
+        _fatal_log_stream = None
+        return None
+    return target
+
+
+def _qt_message_handler(
+    message_type: QtMsgType,
+    context: QMessageLogContext,
+    message: str,
+) -> None:
+    logger = logging.getLogger("qt")
+    level = {
+        QtMsgType.QtDebugMsg: logging.DEBUG,
+        QtMsgType.QtInfoMsg: logging.INFO,
+        QtMsgType.QtWarningMsg: logging.WARNING,
+        QtMsgType.QtCriticalMsg: logging.ERROR,
+        QtMsgType.QtFatalMsg: logging.CRITICAL,
+    }.get(message_type, logging.WARNING)
+    location = ""
+    if context.file:
+        location = f" file={context.file} line={context.line}"
+    logger.log(level, "QT type=%s%s message=%s", message_type.name, location, message)
 
 
 def _exception_hook(exc_type, exc_value, exc_traceback) -> None:
     logging.getLogger(__name__).critical(
         "Nieobsłużony wyjątek", exc_info=(exc_type, exc_value, exc_traceback)
     )
-    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    if sys.stderr is not None:
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+
+def _thread_exception_hook(arguments: Any) -> None:
+    logging.getLogger(__name__).critical(
+        "Nieobsłużony wyjątek w wątku thread=%s",
+        getattr(arguments.thread, "name", "unknown"),
+        exc_info=(arguments.exc_type, arguments.exc_value, arguments.exc_traceback),
+    )
 
 
 def main() -> int:
@@ -53,8 +109,27 @@ def main() -> int:
             os.environ["XDG_CONFIG_HOME"] = temporary_profile.name
             os.environ["XDG_DATA_HOME"] = temporary_profile.name
 
-    _configure_logging()
+    log_path = _configure_logging()
+    fatal_log_path = _configure_fatal_logging()
     sys.excepthook = _exception_hook
+    threading.excepthook = _thread_exception_hook
+    qInstallMessageHandler(_qt_message_handler)
+    logger = logging.getLogger(__name__)
+    logger.info(
+        "APPLICATION START version=%s pid=%d os=%s platform=%s machine=%s "
+        "python=%s frozen=%s executable=%s log=%s fatal_log=%s arguments=%s",
+        __version__,
+        os.getpid(),
+        platform.system(),
+        platform.platform(),
+        platform.machine(),
+        platform.python_version(),
+        bool(getattr(sys, "frozen", False)),
+        sys.executable,
+        log_path,
+        fatal_log_path or "unavailable",
+        sys.argv[1:],
+    )
     internal_arguments = {
         "--smoke-test",
         "--first-run-smoke-test",
@@ -80,8 +155,11 @@ def main() -> int:
     if first_run_smoke_test:
         QTimer.singleShot(100, close_first_run_message)
 
+    logger.info("QAPPLICATION CREATED arguments=%s", qt_arguments[1:])
     window = MainWindow()
+    logger.info("MAIN WINDOW CREATED")
     window.show()
+    logger.info("MAIN WINDOW SHOWN")
     if cleanup_update_backup:
         def cleanup_backup() -> None:
             try:
@@ -144,6 +222,7 @@ def main() -> int:
         QTimer.singleShot(0, window.start)
 
     exit_code = application.exec()
+    logger.info("APPLICATION EXIT code=%d", exit_code)
     if first_run_smoke_test and not first_run_verified:
         return 1
     if task_smoke_test and not task_smoke_verified:

@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a4` jest pierwszym wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a5` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -24,6 +24,7 @@ Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 - blokadę aktualizacji podczas działania Farming Simulator 25;
 - wyświetlanie opisu wydania i changelogu z GitHuba.
 - automatyczną aktualizację samej aplikacji z podmianą i ponownym uruchomieniem.
+- szczegółowe logowanie połączeń oraz tworzenie pakietu diagnostycznego ZIP z menu `Pomoc`.
 
 ## Ważna zasada
 
@@ -86,6 +87,17 @@ uruchomienie zgłosi brak `libEGL.so.1`, należy doinstalować systemowy pakiet 
 Od wersji `0.0.1a3` program sprawdza również własne wydania. Aktualizacja jest pobierana do
 folderu aplikacji, bezpiecznie podmieniana po weryfikacji rozmiaru i dostępnej sumy SHA-256,
 a następnie program uruchamia się ponownie. Ustawienia i folder modów nie są zmieniane.
+
+## Diagnostyka
+
+W razie problemu wybierz `Pomoc → Zapisz pakiet diagnostyczny…` i przekaż utworzony plik ZIP.
+Zawiera on informacje o systemie i wersji programu oraz logi połączeń i awarii, ale nie zawiera
+archiwów modów ani historii instalacji. Folder z samymi logami można otworzyć z tego samego menu.
+
+Domyślna lokalizacja logów:
+
+- Windows: `%LOCALAPPDATA%\StrelokFS25ModUpdater`;
+- Linux: `~/.local/share/StrelokFS25ModUpdater`.
 
 ## Oficjalny katalog
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import urllib.error
@@ -42,6 +43,9 @@ class GitHubClient:
         self._cache: dict[str, tuple[float, Any]] = {}
 
     def _request(self, url: str, *, accept: str = "application/vnd.github+json"):
+        logger = logging.getLogger(__name__)
+        started = time.monotonic()
+        logger.info("HTTP START method=GET url=%s timeout=%.1fs", url, self.timeout)
         request = urllib.request.Request(
             url,
             headers={
@@ -51,8 +55,30 @@ class GitHubClient:
             },
         )
         try:
-            return urllib.request.urlopen(request, timeout=self.timeout)
+            response = urllib.request.urlopen(request, timeout=self.timeout)
+            logger.info(
+                "HTTP RESPONSE method=GET status=%s duration=%.3fs url=%s",
+                getattr(response, "status", "unknown"),
+                time.monotonic() - started,
+                url,
+            )
+            return response
+        except TimeoutError as exc:
+            logger.error(
+                "HTTP TIMEOUT method=GET duration=%.3fs url=%s",
+                time.monotonic() - started,
+                url,
+            )
+            raise GitHubError(
+                f"GitHub nie odpowiedział w ciągu {self.timeout:g} sekund"
+            ) from exc
         except urllib.error.HTTPError as exc:
+            logger.error(
+                "HTTP ERROR method=GET status=%s duration=%.3fs url=%s",
+                exc.code,
+                time.monotonic() - started,
+                url,
+            )
             if exc.code == 404:
                 raise GitHubError(
                     "Repozytorium lub wydanie nie istnieje albo nie jest publiczne"
@@ -65,22 +91,48 @@ class GitHubClient:
             raise GitHubError(f"GitHub zwrócił błąd HTTP {exc.code}") from exc
         except urllib.error.URLError as exc:
             reason = getattr(exc, "reason", exc)
+            logger.error(
+                "HTTP CONNECTION ERROR method=GET duration=%.3fs url=%s reason=%r",
+                time.monotonic() - started,
+                url,
+                reason,
+            )
             raise GitHubError(f"Nie można połączyć się z GitHubem: {reason}") from exc
 
     def get_json(self, url: str, *, use_cache: bool = True) -> Any:
         now = time.monotonic()
         cached = self._cache.get(url)
         if use_cache and cached and now - cached[0] <= self.cache_seconds:
+            logging.getLogger(__name__).info("HTTP CACHE HIT url=%s", url)
             return cached[1]
+        started = time.monotonic()
         try:
             with self._request(url) as response:
+                logging.getLogger(__name__).info("HTTP READ START url=%s", url)
                 data = json.loads(response.read().decode("utf-8"))
+        except TimeoutError as exc:
+            logging.getLogger(__name__).error(
+                "HTTP READ TIMEOUT duration=%.3fs url=%s",
+                time.monotonic() - started,
+                url,
+            )
+            raise GitHubError(
+                f"GitHub nie przesłał odpowiedzi w ciągu {self.timeout:g} sekund"
+            ) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise GitHubError("GitHub zwrócił nieprawidłową odpowiedź") from exc
         self._cache[url] = (now, data)
+        logging.getLogger(__name__).info(
+            "HTTP JSON PARSED duration=%.3fs url=%s type=%s items=%s",
+            time.monotonic() - started,
+            url,
+            type(data).__name__,
+            len(data) if isinstance(data, (dict, list)) else "n/a",
+        )
         return data
 
     def list_releases(self, repository: str) -> list[dict[str, Any]]:
+        logging.getLogger(__name__).info("RELEASES START repository=%s", repository)
         owner, name = repository.split("/", 1)
         url = (
             "https://api.github.com/repos/"
@@ -89,7 +141,11 @@ class GitHubClient:
         value = self.get_json(url)
         if not isinstance(value, list):
             raise GitHubError("GitHub zwrócił nieprawidłową listę wydań")
-        return [item for item in value if isinstance(item, dict)]
+        releases = [item for item in value if isinstance(item, dict)]
+        logging.getLogger(__name__).info(
+            "RELEASES FINISH repository=%s count=%d", repository, len(releases)
+        )
+        return releases
 
     @staticmethod
     def _matching_asset(release: dict[str, Any], mod: CatalogMod) -> dict[str, Any] | None:
@@ -101,6 +157,8 @@ class GitHubClient:
         return exact[0] if exact else sorted(matches, key=lambda item: str(item.get("name", "")))[0]
 
     def releases_for_mod(self, mod: CatalogMod) -> list[ReleaseInfo]:
+        logger = logging.getLogger(__name__)
+        logger.info("MOD RELEASES START mod_id=%s repository=%s", mod.id, mod.repository)
         result: list[ReleaseInfo] = []
         for release in self.list_releases(mod.repository):
             if release.get("draft"):
@@ -126,6 +184,12 @@ class GitHubClient:
                     digest=(str(asset["digest"]) if asset.get("digest") else None),
                 )
             )
+        logger.info(
+            "MOD RELEASES FINISH mod_id=%s repository=%s matches=%d",
+            mod.id,
+            mod.repository,
+            len(result),
+        )
         return result
 
     def latest_catalog_release(self, repository: str) -> CatalogRelease | None:
@@ -162,6 +226,9 @@ class GitHubClient:
         *,
         progress: ProgressCallback | None = None,
     ) -> None:
+        logger = logging.getLogger(__name__)
+        started = time.monotonic()
+        logger.info("DOWNLOAD START url=%s target=%s", url, target)
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
             with self._request(url, accept="application/octet-stream") as response:
@@ -180,6 +247,19 @@ class GitHubClient:
                     raise GitHubError(
                         f"Pobrano niepełny plik: {received} z {total} bajtów"
                     )
+                logger.info(
+                    "DOWNLOAD FINISH bytes=%d expected=%d duration=%.3fs target=%s",
+                    received,
+                    total,
+                    time.monotonic() - started,
+                    target,
+                )
         except BaseException:
+            logger.exception(
+                "DOWNLOAD ERROR duration=%.3fs url=%s target=%s",
+                time.monotonic() - started,
+                url,
+                target,
+            )
             target.unlink(missing_ok=True)
             raise

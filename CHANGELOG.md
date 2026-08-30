@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 0.0.1a5 — diagnostyka połączeń i awarii
+
+- dodano szczegółowy log startu, zadań w tle i zapytań do GitHuba;
+- dodano osobny log awarii natywnych Pythona i komunikatów Qt;
+- status pokazuje aktualnie sprawdzany mod oraz repozytorium;
+- podczas oczekiwania na GitHuba pasek postępu jest animowany zamiast stale pokazywać 0%;
+- menu Pomoc pozwala otworzyć folder logów i zapisać gotowy pakiet diagnostyczny ZIP.
+
 ## 0.0.1a4 — stabilność zadań w tle
 
 - naprawiono losowe zamykanie GUI podczas sprawdzania repozytoriów;

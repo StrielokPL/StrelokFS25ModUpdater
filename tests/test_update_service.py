@@ -105,6 +105,22 @@ class UpdateServiceTests(unittest.TestCase):
         self.assertEqual(check.state, UpdateState.ERROR)
         self.assertIn("1.0.0.0", check.message)
 
+    def test_reports_current_repository_through_status_callback(self) -> None:
+        statuses: list[str] = []
+        service = UpdateCheckService(FakeReleaseClient([release("1.0.0.0")]))
+
+        service.check_all(
+            (self.mod,),
+            {},
+            {self.mod.id: ReleaseChannel.STABLE},
+            status=statuses.append,
+        )
+
+        self.assertEqual(len(statuses), 1)
+        self.assertIn("1/1", statuses[0])
+        self.assertIn(self.mod.name, statuses[0])
+        self.assertIn(self.mod.repository, statuses[0])
+
 
 if __name__ == "__main__":
     unittest.main()

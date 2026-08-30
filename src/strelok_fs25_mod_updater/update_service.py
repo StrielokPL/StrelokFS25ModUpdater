@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+import logging
+from collections.abc import Callable, Iterable
 
 from .github_client import GitHubClient, GitHubError
 from .models import (
@@ -28,15 +29,32 @@ class UpdateCheckService:
         local_mods: dict[str, LocalMod],
         channels: dict[str, ReleaseChannel],
         pinned_versions: dict[str, str] | None = None,
+        status: Callable[[str], None] | None = None,
     ) -> list[UpdateCheck]:
+        logger = logging.getLogger(__name__)
         pinned_versions = pinned_versions or {}
         result: list[UpdateCheck] = []
-        for mod in mods:
+        logger.info("MOD CHECK START count=%d", len(mods))
+        for index, mod in enumerate(mods, start=1):
+            if status:
+                status(
+                    f"Sprawdzanie {index}/{len(mods)}: {mod.name} "
+                    f"({mod.repository})"
+                )
             local = local_mods.get(mod.id)
             replaced = tuple(
                 local_mods[item] for item in mod.replaces if item in local_mods
             )
             channel = channels.get(mod.id, ReleaseChannel.STABLE)
+            logger.info(
+                "MOD CHECK ITEM index=%d total=%d mod_id=%s repository=%s channel=%s local=%s",
+                index,
+                len(mods),
+                mod.id,
+                mod.repository,
+                channel.value,
+                local.version_text if local else "not-installed",
+            )
             check = UpdateCheck(mod=mod, local=local, replaced_local_mods=replaced)
 
             if mod.status is not ModStatus.ACTIVE:
@@ -53,6 +71,12 @@ class UpdateCheckService:
             try:
                 releases = self.client.releases_for_mod(mod)
             except GitHubError as exc:
+                logger.error(
+                    "MOD CHECK SOURCE ERROR mod_id=%s repository=%s error=%s",
+                    mod.id,
+                    mod.repository,
+                    exc,
+                )
                 check.state = UpdateState.ERROR
                 check.message = str(exc)
                 result.append(check)
@@ -108,6 +132,14 @@ class UpdateCheckService:
                     check.state = UpdateState.LOCAL_NEWER
                     check.message = "Wersja lokalna jest nowsza od wybranego kanału"
             result.append(check)
+            logger.info(
+                "MOD CHECK RESULT mod_id=%s state=%s releases=%d selected=%s",
+                mod.id,
+                check.state.value,
+                len(check.available_releases),
+                check.selected_release.tag if check.selected_release else "none",
+            )
+        logger.info("MOD CHECK FINISH count=%d", len(result))
         return result
 
     @staticmethod

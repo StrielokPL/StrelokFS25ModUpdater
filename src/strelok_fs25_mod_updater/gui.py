@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QThreadPool, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QThreadPool, QTimer, Qt, QUrl
+from PySide6.QtGui import QAction, QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from .catalog import CatalogManager
 from .catalog_updates import CatalogUpdate, CatalogUpdateService
+from .diagnostics import create_diagnostic_bundle
 from .fs25 import discover_mod_directories, scan_known_mods
 from .github_client import GitHubClient
 from .installer import ModInstaller
@@ -56,6 +57,7 @@ from .storage import (
     HistoryStore,
     SettingsStore,
     config_dir,
+    data_dir,
 )
 from .task import Task, TaskSignals
 from .update_service import UpdateCheckService
@@ -181,6 +183,14 @@ class MainWindow(QMainWindow):
             )
 
     def _build_ui(self) -> None:
+        help_menu = self.menuBar().addMenu("Pomoc")
+        open_logs_action = QAction("Otwórz folder logów", self)
+        open_logs_action.triggered.connect(self._open_log_directory)
+        help_menu.addAction(open_logs_action)
+        save_diagnostics_action = QAction("Zapisz pakiet diagnostyczny…", self)
+        save_diagnostics_action.triggered.connect(self._save_diagnostic_bundle)
+        help_menu.addAction(save_diagnostics_action)
+
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
@@ -358,6 +368,7 @@ class MainWindow(QMainWindow):
                 traceback_text,
                 startup=startup,
             ),
+            name="application-update-check",
         )
 
     def _application_update_checked(
@@ -441,7 +452,7 @@ class MainWindow(QMainWindow):
                 return
             QApplication.instance().quit()
 
-        self._start_task(work, success)
+        self._start_task(work, success, name="application-update-prepare")
 
     def _begin_catalog_check(self) -> None:
         self._set_status("Sprawdzanie wersji oficjalnej listy modów…")
@@ -453,6 +464,7 @@ class MainWindow(QMainWindow):
             work,
             self._catalog_checked,
             error=self._catalog_check_failed,
+            name="catalog-update-check",
         )
 
     def _catalog_checked(self, update: CatalogUpdate | None) -> None:
@@ -490,7 +502,7 @@ class MainWindow(QMainWindow):
             self._set_status("Zaktualizowano oficjalną listę modów")
             self._begin_release_check()
 
-        self._start_task(work, success)
+        self._start_task(work, success, name="catalog-update-install")
 
     def _begin_release_check(self) -> None:
         self._scan_local()
@@ -500,12 +512,13 @@ class MainWindow(QMainWindow):
         }
         self._set_status("Sprawdzanie wydań modów na GitHubie…")
 
-        def work(_signals: TaskSignals):
+        def work(signals: TaskSignals):
             return self.update_checks.check_all(
                 self.mods,
                 self.local_mods,
                 channels,
                 pinned_versions,
+                status=signals.status.emit,
             )
 
         def success(checks: list[UpdateCheck]) -> None:
@@ -517,7 +530,7 @@ class MainWindow(QMainWindow):
             else:
                 self._set_status(f"Znaleziono {updates} pozycji do pobrania lub aktualizacji")
 
-        self._start_task(work, success)
+        self._start_task(work, success, name="mod-release-check")
 
     def _populate_table(self, checks: list[UpdateCheck]) -> None:
         self.checks = {check.mod.id: check for check in checks}
@@ -757,7 +770,7 @@ class MainWindow(QMainWindow):
             self._scan_local()
             self._begin_release_check()
 
-        self._start_task(work, success)
+        self._start_task(work, success, name="mod-install")
 
     def _add_external(self) -> None:
         answer = QMessageBox.warning(
@@ -852,7 +865,57 @@ class MainWindow(QMainWindow):
             self._scan_local()
             self._begin_release_check()
 
-        self._start_task(work, success)
+        self._start_task(work, success, name="rollback")
+
+    def _open_log_directory(self) -> None:
+        directory = data_dir()
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logging.getLogger(__name__).exception("Nie udało się utworzyć folderu logów")
+            QMessageBox.warning(self, "Błąd", f"Nie można otworzyć folderu logów:\n{exc}")
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+            QMessageBox.information(
+                self,
+                "Folder logów",
+                f"Nie udało się otworzyć folderu automatycznie.\n\n{directory}",
+            )
+
+    def _save_diagnostic_bundle(self) -> None:
+        default_target = Path.home() / "StrelokFS25ModUpdater-diagnostyka.zip"
+        selected, _filter = QFileDialog.getSaveFileName(
+            self,
+            "Zapisz pakiet diagnostyczny",
+            str(default_target),
+            "Archiwum ZIP (*.zip)",
+        )
+        if not selected:
+            return
+        target = Path(selected)
+        if target.suffix.casefold() != ".zip":
+            target = target.with_suffix(".zip")
+        try:
+            create_diagnostic_bundle(
+                target,
+                extra={
+                    "status": self.status_label.text(),
+                    "modsDirectory": self.settings.mods_directory,
+                    "catalogVersion": self.catalog.catalog_version,
+                    "knownMods": len(self.mods),
+                    "activeTasks": [task.name for task in self.active_tasks],
+                },
+            )
+        except OSError as exc:
+            logging.getLogger(__name__).exception("Nie udało się zapisać diagnostyki")
+            QMessageBox.critical(self, "Błąd zapisu", str(exc))
+            return
+        logging.getLogger(__name__).info("Zapisano pakiet diagnostyczny target=%s", target)
+        QMessageBox.information(
+            self,
+            "Pakiet diagnostyczny zapisany",
+            f"Wyślij testerowi lub autorowi ten plik:\n\n{target}",
+        )
 
     def _start_task(
         self,
@@ -860,8 +923,9 @@ class MainWindow(QMainWindow):
         result,
         *,
         error=None,
+        name: str | None = None,
     ) -> None:
-        task = Task(function)
+        task = Task(function, name=name)
         task.signals.result.connect(result)
         task.signals.error.connect(error or self._task_error)
         task.signals.status.connect(self._set_status)
@@ -869,14 +933,16 @@ class MainWindow(QMainWindow):
         task.signals.finished.connect(lambda task=task: self._task_finished(task))
         self.active_tasks.add(task)
         self.busy_tasks += 1
+        self.progress.setRange(0, 0)
         self._update_busy_state()
         self.thread_pool.start(task)
 
     def _task_finished(self, task: Task) -> None:
         self.active_tasks.discard(task)
         self.busy_tasks = max(0, self.busy_tasks - 1)
-        self.progress.setRange(0, 1)
-        self.progress.setValue(0)
+        if self.busy_tasks == 0:
+            self.progress.setRange(0, 1)
+            self.progress.setValue(0)
         self._update_busy_state()
 
     def _task_error(self, message: str, traceback_text: str) -> None:
@@ -905,6 +971,7 @@ class MainWindow(QMainWindow):
         self.table.setEnabled(not busy)
 
     def _set_status(self, text: str) -> None:
+        logging.getLogger(__name__).info("STATUS %s", text)
         self.status_label.setText(text)
 
     def _set_progress(self, received: int, total: int) -> None:
