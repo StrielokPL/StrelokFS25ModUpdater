@@ -14,6 +14,7 @@ from typing import Callable
 from . import __version__
 from .fs25 import sha256_file
 from .github_client import GitHubClient
+from .update_helper import UPDATE_CLEANUP_ARGUMENT, WINDOWS_HELPER_NAME
 from .versioning import ModVersion
 
 
@@ -41,6 +42,9 @@ class ApplicationUpdate:
     download_url: str
     size: int = 0
     digest: str | None = None
+    helper_download_url: str = ""
+    helper_size: int = 0
+    helper_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,7 @@ class PreparedApplicationUpdate:
     staged_path: Path
     executable_path: Path
     platform_name: str
+    helper_path: Path | None = None
 
     @property
     def backup_path(self) -> Path:
@@ -68,7 +73,7 @@ class PreparedApplicationUpdate:
         try:
             os.replace(self.staged_path, target)
             subprocess.Popen(
-                [str(target), "--cleanup-update-backup"],
+                [str(target), UPDATE_CLEANUP_ARGUMENT],
                 cwd=target.parent,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
@@ -84,29 +89,21 @@ class PreparedApplicationUpdate:
     def _schedule_windows_update(self) -> None:
         target = self.executable_path
         backup = self.backup_path
-        script = target.parent / f".strelok-update-{uuid.uuid4().hex}.ps1"
-        script.write_text(_WINDOWS_UPDATE_SCRIPT, encoding="utf-8")
-        creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
-            subprocess, "CREATE_NO_WINDOW", 0
-        )
+        helper = self.helper_path
+        if helper is None or not helper.is_file():
+            raise SelfUpdateError("Nie znaleziono helpera aktualizacji Windows")
+        creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         try:
             subprocess.Popen(
                 [
-                    "powershell.exe",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-WindowStyle",
-                    "Hidden",
-                    "-File",
-                    str(script),
-                    "-OldPid",
+                    str(helper),
+                    "--old-pid",
                     str(os.getpid()),
-                    "-Target",
+                    "--target",
                     str(target),
-                    "-Staged",
+                    "--staged",
                     str(self.staged_path),
-                    "-Backup",
+                    "--backup",
                     str(backup),
                 ],
                 stdin=subprocess.DEVNULL,
@@ -116,9 +113,9 @@ class PreparedApplicationUpdate:
                 creationflags=creation_flags,
             )
         except OSError as exc:
-            script.unlink(missing_ok=True)
+            self.staged_path.unlink(missing_ok=True)
             raise SelfUpdateError(
-                f"Nie udało się uruchomić instalatora aktualizacji: {exc}"
+                f"Nie udało się uruchomić helpera aktualizacji: {exc}"
             ) from exc
 
 
@@ -165,6 +162,21 @@ class ApplicationUpdateService:
             download_url = str(asset.get("browser_download_url", ""))
             if not download_url.startswith("https://"):
                 continue
+            helper_asset = None
+            if self.platform_name == "nt":
+                helper_asset = next(
+                    (
+                        item
+                        for item in assets
+                        if str(item.get("name", "")) == WINDOWS_HELPER_NAME
+                    ),
+                    None,
+                )
+                if helper_asset is None:
+                    continue
+                helper_url = str(helper_asset.get("browser_download_url", ""))
+                if not helper_url.startswith("https://"):
+                    continue
             candidates.append(
                 ApplicationUpdate(
                     tag=tag,
@@ -178,6 +190,17 @@ class ApplicationUpdateService:
                     download_url=download_url,
                     size=int(asset.get("size") or 0),
                     digest=(str(asset["digest"]) if asset.get("digest") else None),
+                    helper_download_url=(
+                        str(helper_asset.get("browser_download_url", ""))
+                        if helper_asset
+                        else ""
+                    ),
+                    helper_size=(int(helper_asset.get("size") or 0) if helper_asset else 0),
+                    helper_digest=(
+                        str(helper_asset["digest"])
+                        if helper_asset and helper_asset.get("digest")
+                        else None
+                    ),
                 )
             )
         return max(
@@ -209,6 +232,8 @@ class ApplicationUpdateService:
         token = uuid.uuid4().hex
         downloaded = target.parent / f".{target.name}.{token}.download"
         staged = target.parent / f".{target.name}.{token}.update"
+        helper_downloaded: Path | None = None
+        helper_path: Path | None = None
         if self.platform_name == "nt":
             staged = staged.with_suffix(".exe")
         try:
@@ -217,7 +242,40 @@ class ApplicationUpdateService:
             self.client.download(update.download_url, downloaded, progress=progress)
             self._verify_download(downloaded, update)
             if self.platform_name == "nt":
+                self._verify_windows_executable(downloaded, "aplikacji")
                 os.replace(downloaded, staged)
+                helper_path = target.parent / WINDOWS_HELPER_NAME
+                helper_ready = (
+                    helper_path.is_file()
+                    and helper_path.stat().st_size > 0
+                    and self._has_windows_header(helper_path)
+                )
+                if not helper_ready:
+                    if not update.helper_download_url:
+                        raise SelfUpdateError(
+                            "Wydanie nie zawiera helpera aktualizacji Windows"
+                        )
+                    if status:
+                        status("Pobieranie helpera aktualizacji…")
+                    helper_downloaded = target.parent / (
+                        f".{WINDOWS_HELPER_NAME}.{token}.download"
+                    )
+                    self.client.download(
+                        update.helper_download_url,
+                        helper_downloaded,
+                        progress=progress,
+                    )
+                    self._verify_file(
+                        helper_downloaded,
+                        expected_size=update.helper_size,
+                        digest=update.helper_digest,
+                        description="helpera aktualizacji",
+                    )
+                    self._verify_windows_executable(
+                        helper_downloaded,
+                        "helpera aktualizacji",
+                    )
+                    os.replace(helper_downloaded, helper_path)
             else:
                 self._stage_linux_executable(downloaded, staged, target)
             return PreparedApplicationUpdate(
@@ -225,24 +283,57 @@ class ApplicationUpdateService:
                 staged_path=staged,
                 executable_path=target,
                 platform_name=self.platform_name,
+                helper_path=helper_path,
             )
         except SelfUpdateError:
+            staged.unlink(missing_ok=True)
             raise
         except BaseException as exc:
+            staged.unlink(missing_ok=True)
             raise SelfUpdateError(str(exc)) from exc
         finally:
             downloaded.unlink(missing_ok=True)
+            if helper_downloaded is not None:
+                helper_downloaded.unlink(missing_ok=True)
 
     @staticmethod
     def _verify_download(path: Path, update: ApplicationUpdate) -> None:
-        if update.size and path.stat().st_size != update.size:
-            raise SelfUpdateError("Pobrano niepełny plik aktualizacji")
-        if not update.digest:
+        ApplicationUpdateService._verify_file(
+            path,
+            expected_size=update.size,
+            digest=update.digest,
+            description="pliku aktualizacji",
+        )
+
+    @staticmethod
+    def _verify_file(
+        path: Path,
+        *,
+        expected_size: int,
+        digest: str | None,
+        description: str,
+    ) -> None:
+        if expected_size and path.stat().st_size != expected_size:
+            raise SelfUpdateError(f"Pobrano niepełny plik {description}")
+        if not digest:
             return
-        algorithm, _, expected = update.digest.partition(":")
+        algorithm, _, expected = digest.partition(":")
         if algorithm.casefold() == "sha256" and expected:
             if sha256_file(path).casefold() != expected.casefold():
-                raise SelfUpdateError("Suma SHA-256 aktualizacji jest nieprawidłowa")
+                raise SelfUpdateError(f"Suma SHA-256 {description} jest nieprawidłowa")
+
+    @staticmethod
+    def _has_windows_header(path: Path) -> bool:
+        try:
+            with path.open("rb") as handle:
+                return handle.read(2) == b"MZ"
+        except OSError:
+            return False
+
+    @staticmethod
+    def _verify_windows_executable(path: Path, description: str) -> None:
+        if not ApplicationUpdateService._has_windows_header(path):
+            raise SelfUpdateError(f"Pobrany plik {description} nie jest programem Windows")
 
     @staticmethod
     def _stage_linux_executable(archive_path: Path, staged: Path, current: Path) -> None:
@@ -267,32 +358,3 @@ def cleanup_previous_executable(executable_path: Path | None = None) -> None:
         return
     target = (executable_path or Path(sys.executable)).resolve()
     target.with_name(f".{target.name}.previous").unlink(missing_ok=True)
-
-
-_WINDOWS_UPDATE_SCRIPT = r'''param(
-    [int]$OldPid,
-    [string]$Target,
-    [string]$Staged,
-    [string]$Backup
-)
-
-$ErrorActionPreference = "Stop"
-Wait-Process -Id $OldPid -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $Backup -Force -ErrorAction SilentlyContinue
-
-try {
-    Move-Item -LiteralPath $Target -Destination $Backup -Force
-    Move-Item -LiteralPath $Staged -Destination $Target -Force
-    Start-Process -FilePath $Target `
-        -ArgumentList "--cleanup-update-backup" `
-        -WorkingDirectory (Split-Path -Parent $Target)
-} catch {
-    Remove-Item -LiteralPath $Target -Force -ErrorAction SilentlyContinue
-    if (Test-Path -LiteralPath $Backup) {
-        Move-Item -LiteralPath $Backup -Destination $Target -Force
-        Start-Process -FilePath $Target -WorkingDirectory (Split-Path -Parent $Target)
-    }
-}
-
-Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
-'''

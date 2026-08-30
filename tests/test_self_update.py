@@ -3,25 +3,42 @@ from __future__ import annotations
 import os
 import shutil
 import stat
-import subprocess
 import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from strelok_fs25_mod_updater.self_update import (
     LINUX_ASSET_NAME,
     LINUX_EXECUTABLE_NAME,
+    WINDOWS_ASSET_NAME,
     ApplicationUpdate,
     ApplicationUpdateService,
+    PreparedApplicationUpdate,
     SelfUpdateError,
-    _WINDOWS_UPDATE_SCRIPT,
     cleanup_previous_executable,
 )
+from strelok_fs25_mod_updater.update_helper import WINDOWS_HELPER_NAME
 from strelok_fs25_mod_updater.versioning import ModVersion
 
 
 def github_release(tag: str, *, prerelease: bool = False, asset: str = LINUX_ASSET_NAME):
+    assets = [
+        {
+            "name": asset,
+            "browser_download_url": f"https://example.invalid/{asset}",
+            "size": 123,
+        }
+    ]
+    if asset == WINDOWS_ASSET_NAME:
+        assets.append(
+            {
+                "name": WINDOWS_HELPER_NAME,
+                "browser_download_url": f"https://example.invalid/{WINDOWS_HELPER_NAME}",
+                "size": 45,
+            }
+        )
     return {
         "tag_name": tag,
         "name": tag,
@@ -29,28 +46,33 @@ def github_release(tag: str, *, prerelease: bool = False, asset: str = LINUX_ASS
         "prerelease": prerelease,
         "published_at": "2026-08-30T00:00:00Z",
         "body": f"Zmiany w {tag}",
-        "assets": [
-            {
-                "name": asset,
-                "browser_download_url": f"https://example.invalid/{asset}",
-                "size": 123,
-            }
-        ],
+        "assets": assets,
     }
 
 
 class FakeClient:
-    def __init__(self, releases=(), download_source: Path | None = None):
+    def __init__(
+        self,
+        releases=(),
+        download_source: Path | None = None,
+        helper_source: Path | None = None,
+    ):
         self.releases = list(releases)
         self.download_source = download_source
+        self.helper_source = helper_source
 
     def list_releases(self, _repository):
         return self.releases
 
-    def download(self, _url, target, *, progress=None):
-        if self.download_source is None:
+    def download(self, url, target, *, progress=None):
+        source = (
+            self.helper_source
+            if url.endswith(WINDOWS_HELPER_NAME)
+            else self.download_source
+        )
+        if source is None:
             raise AssertionError("Brak pliku testowego")
-        shutil.copy2(self.download_source, target)
+        shutil.copy2(source, target)
         if progress:
             size = target.stat().st_size
             progress(size, size)
@@ -87,6 +109,41 @@ class ApplicationUpdateTests(unittest.TestCase):
         update = service.check()
         self.assertIsNotNone(update)
         self.assertEqual(update.tag, "v1.0.1")
+
+    def test_windows_release_includes_separate_helper(self) -> None:
+        service = ApplicationUpdateService(
+            FakeClient(
+                [
+                    github_release(
+                        "v0.0.1a6",
+                        prerelease=True,
+                        asset=WINDOWS_ASSET_NAME,
+                    )
+                ]
+            ),
+            current_version="0.0.1a5",
+            platform_name="nt",
+        )
+
+        update = service.check()
+
+        self.assertIsNotNone(update)
+        self.assertTrue(update.helper_download_url.endswith(WINDOWS_HELPER_NAME))
+
+    def test_windows_release_without_helper_is_ignored(self) -> None:
+        release = github_release(
+            "v0.0.1a6",
+            prerelease=True,
+            asset=WINDOWS_ASSET_NAME,
+        )
+        release["assets"] = release["assets"][:1]
+        service = ApplicationUpdateService(
+            FakeClient([release]),
+            current_version="0.0.1a5",
+            platform_name="nt",
+        )
+
+        self.assertIsNone(service.check())
 
     def test_linux_update_is_staged_as_executable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -154,6 +211,82 @@ class ApplicationUpdateTests(unittest.TestCase):
             with self.assertRaises(SelfUpdateError):
                 service.prepare(update)
 
+    def test_windows_update_downloads_and_prepares_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            current = root / WINDOWS_ASSET_NAME
+            current.write_bytes(b"old application")
+            new_application = root / "new-application"
+            new_application.write_bytes(b"MZnew application")
+            new_helper = root / "new-helper"
+            new_helper.write_bytes(b"MZupdate helper")
+            update = ApplicationUpdate(
+                tag="v0.0.1a6",
+                version=ModVersion.parse("v0.0.1a6"),
+                prerelease=True,
+                published_at="",
+                notes="",
+                asset_name=WINDOWS_ASSET_NAME,
+                download_url="https://example.invalid/application.exe",
+                size=new_application.stat().st_size,
+                helper_download_url=f"https://example.invalid/{WINDOWS_HELPER_NAME}",
+                helper_size=new_helper.stat().st_size,
+            )
+            service = ApplicationUpdateService(
+                FakeClient(
+                    download_source=new_application,
+                    helper_source=new_helper,
+                ),
+                current_version="0.0.1a5",
+                platform_name="nt",
+                executable_path=current,
+                frozen=True,
+            )
+
+            prepared = service.prepare(update)
+
+            self.assertEqual(prepared.staged_path.read_bytes(), b"MZnew application")
+            self.assertEqual(prepared.helper_path, root / WINDOWS_HELPER_NAME)
+            self.assertEqual(prepared.helper_path.read_bytes(), b"MZupdate helper")
+            self.assertEqual(current.read_bytes(), b"old application")
+
+    def test_windows_update_launches_helper_without_powershell(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            current = root / WINDOWS_ASSET_NAME
+            staged = root / ".application.update.exe"
+            helper = root / WINDOWS_HELPER_NAME
+            current.write_bytes(b"old")
+            staged.write_bytes(b"new")
+            helper.write_bytes(b"helper")
+            update = ApplicationUpdate(
+                tag="v0.0.1a6",
+                version=ModVersion.parse("v0.0.1a6"),
+                prerelease=True,
+                published_at="",
+                notes="",
+                asset_name=WINDOWS_ASSET_NAME,
+                download_url="https://example.invalid/application.exe",
+            )
+            prepared = PreparedApplicationUpdate(
+                update=update,
+                staged_path=staged,
+                executable_path=current,
+                platform_name="nt",
+                helper_path=helper,
+            )
+
+            with mock.patch(
+                "strelok_fs25_mod_updater.self_update.subprocess.Popen"
+            ) as popen:
+                prepared.apply_and_restart()
+
+            arguments = popen.call_args.args[0]
+            self.assertEqual(arguments[0], str(helper))
+            self.assertNotIn("powershell.exe", [item.casefold() for item in arguments])
+            self.assertIn("--old-pid", arguments)
+            self.assertIn("--staged", arguments)
+
     def test_previous_executable_cleanup_has_fixed_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / LINUX_EXECUTABLE_NAME
@@ -161,30 +294,6 @@ class ApplicationUpdateTests(unittest.TestCase):
             previous.write_bytes(b"previous")
             cleanup_previous_executable(executable)
             self.assertFalse(previous.exists())
-
-    @unittest.skipUnless(os.name == "nt", "Test składni PowerShell wymaga Windowsa")
-    def test_windows_update_helper_has_valid_powershell_syntax(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            script = Path(directory) / "update.ps1"
-            script.write_text(_WINDOWS_UPDATE_SCRIPT, encoding="utf-8")
-            environment = os.environ.copy()
-            environment["STRELOK_UPDATE_TEST_SCRIPT"] = str(script)
-            completed = subprocess.run(
-                [
-                    "powershell.exe",
-                    "-NoProfile",
-                    "-Command",
-                    "[void][ScriptBlock]::Create([IO.File]::ReadAllText("
-                    "$env:STRELOK_UPDATE_TEST_SCRIPT))",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                env=environment,
-                timeout=15,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

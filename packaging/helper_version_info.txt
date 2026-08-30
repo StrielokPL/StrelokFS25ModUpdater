@@ -1,0 +1,30 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(0, 0, 1, 6),
+    prodvers=(0, 0, 1, 6),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'StrelokPL'),
+          StringStruct('FileDescription', 'Strelok FS25 Mod Updater Helper'),
+          StringStruct('FileVersion', '0.0.1a6'),
+          StringStruct('InternalName', 'StrelokFS25ModUpdaterHelper'),
+          StringStruct('LegalCopyright', 'Copyright StrelokPL'),
+          StringStruct('OriginalFilename', 'StrelokFS25ModUpdaterHelper.exe'),
+          StringStruct('ProductName', 'Strelok FS25 Mod Updater'),
+          StringStruct('ProductVersion', '0.0.1a6')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)

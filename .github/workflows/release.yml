@@ -42,6 +42,10 @@ jobs:
       - name: Build executable
         working-directory: packaging
         run: pyinstaller --clean --noconfirm StrelokFS25ModUpdater.spec
+      - name: Build Windows update helper
+        if: runner.os == 'Windows'
+        working-directory: packaging
+        run: pyinstaller --clean --noconfirm StrelokFS25ModUpdaterHelper.spec
       - name: Smoke-test Linux executable
         if: runner.os == 'Linux'
         env:
@@ -61,10 +65,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & packaging/dist/StrelokFS25ModUpdater.exe --task-smoke-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & packaging/dist/StrelokFS25ModUpdaterHelper.exe --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Name Windows executable
         if: runner.os == 'Windows'
         shell: pwsh
         run: Move-Item packaging/dist/StrelokFS25ModUpdater.exe packaging/dist/StrelokFS25ModUpdater-Windows-x64.exe
+      - name: Pack Windows application and update helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = @(
+            "packaging/dist/StrelokFS25ModUpdater-Windows-x64.exe",
+            "packaging/dist/StrelokFS25ModUpdaterHelper.exe"
+          )
+          Compress-Archive `
+            -LiteralPath $files `
+            -DestinationPath packaging/dist/StrelokFS25ModUpdater-Windows-x64.zip
       - name: Pack Linux executable
         if: runner.os == 'Linux'
         run: tar -C packaging/dist -czf packaging/dist/StrelokFS25ModUpdater-Linux-x64.tar.gz StrelokFS25ModUpdater
@@ -73,6 +90,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             packaging/dist/*.exe
+            packaging/dist/*.zip
             packaging/dist/*.tar.gz
           if-no-files-found: error
 

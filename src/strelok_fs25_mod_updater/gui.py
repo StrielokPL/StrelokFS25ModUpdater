@@ -438,11 +438,19 @@ class MainWindow(QMainWindow):
             )
 
         def success(prepared: PreparedApplicationUpdate) -> None:
+            if prepared.platform_name == "nt":
+                restart_message = (
+                    "Program zostanie teraz zamknięty. Osobny helper podmieni plik, "
+                    "uruchomi nową wersję i sam zakończy działanie."
+                )
+            else:
+                restart_message = (
+                    "Program zostanie teraz zamknięty, zaktualizowany i uruchomiony ponownie."
+                )
             QMessageBox.information(
                 self,
                 "Aktualizacja pobrana",
-                "Program zostanie teraz zamknięty, zaktualizowany i uruchomiony ponownie. "
-                "Ustawienia oraz pobrane mody pozostaną bez zmian.",
+                f"{restart_message} Ustawienia oraz pobrane mody pozostaną bez zmian.",
             )
             try:
                 prepared.apply_and_restart()

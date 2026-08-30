@@ -1,22 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import sys
-
-from PyInstaller.utils.hooks import collect_data_files
-
-
-datas = collect_data_files("strelok_fs25_mod_updater")
-
 analysis = Analysis(
-    ["launcher.py"],
+    ["helper_launcher.py"],
     pathex=["../src"],
     binaries=[],
-    datas=datas,
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["PySide6"],
     noarchive=False,
 )
 pyz = PYZ(analysis.pure)
@@ -27,11 +20,11 @@ executable = EXE(
     analysis.binaries,
     analysis.datas,
     [],
-    name="StrelokFS25ModUpdater",
+    name="StrelokFS25ModUpdaterHelper",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=False,
-    version="version_info.txt" if sys.platform == "win32" else None,
+    version="helper_version_info.txt",
 )

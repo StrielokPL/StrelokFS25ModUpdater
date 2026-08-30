@@ -1,5 +1,14 @@
 # Historia zmian
 
+## 0.0.1a6 — bezpieczniejsza aktualizacja Windows
+
+- usunięto aktualizację opartą na ukrytym PowerShellu i `ExecutionPolicy Bypass`;
+- dodano osobny program `StrelokFS25ModUpdaterHelper.exe`;
+- helper czeka na zamknięcie GUI, podmienia zweryfikowany plik i uruchamia nową wersję;
+- w razie błędu helper przywraca poprzednią wersję aplikacji;
+- wydanie Windows zawiera zalecaną paczkę ZIP z aplikacją i helperem;
+- wyłączono UPX oraz dodano metadane produktu i wersji do plików Windows.
+
 ## 0.0.1a5 — diagnostyka połączeń i awarii
 
 - dodano szczegółowy log startu, zadań w tle i zapytań do GitHuba;

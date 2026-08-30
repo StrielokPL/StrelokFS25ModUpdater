@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a5` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a6` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -72,6 +72,8 @@ python -m unittest discover -v
 Tag `vX.Y.Z` uruchamia budowę:
 
 - `StrelokFS25ModUpdater-Windows-x64.exe`;
+- `StrelokFS25ModUpdaterHelper.exe`;
+- `StrelokFS25ModUpdater-Windows-x64.zip` zawierający oba powyższe pliki;
 - `StrelokFS25ModUpdater-Linux-x64.tar.gz`.
 
 Buildy powstają natywnie na odpowiednim systemie przez GitHub Actions.
@@ -87,6 +89,13 @@ uruchomienie zgłosi brak `libEGL.so.1`, należy doinstalować systemowy pakiet 
 Od wersji `0.0.1a3` program sprawdza również własne wydania. Aktualizacja jest pobierana do
 folderu aplikacji, bezpiecznie podmieniana po weryfikacji rozmiaru i dostępnej sumy SHA-256,
 a następnie program uruchamia się ponownie. Ustawienia i folder modów nie są zmieniane.
+
+Na Windowsie zalecane jest pobranie paczki ZIP i wypakowanie aplikacji oraz helpera do jednego
+folderu. Od wersji `0.0.1a6` aktualizacja nie uruchamia PowerShella. Po zaakceptowaniu nowej
+wersji GUI uruchamia osobny helper i się zamyka. Helper czeka na zwolnienie starego pliku,
+wykonuje kopię, podmienia aplikację, uruchamia nową wersję i kończy działanie. Jeżeli helpera
+brakuje po przejściu ze starszego pojedynczego pliku EXE, aplikacja pobierze go z tego samego
+wydania GitHub i zweryfikuje przed uruchomieniem.
 
 ## Diagnostyka
 
