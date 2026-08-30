@@ -246,7 +246,10 @@ class ApplicationUpdateTests(unittest.TestCase):
             prepared = service.prepare(update)
 
             self.assertEqual(prepared.staged_path.read_bytes(), b"MZnew application")
-            self.assertEqual(prepared.helper_path, root / WINDOWS_HELPER_NAME)
+            self.assertEqual(
+                prepared.helper_path,
+                (root / WINDOWS_HELPER_NAME).resolve(),
+            )
             self.assertEqual(prepared.helper_path.read_bytes(), b"MZupdate helper")
             self.assertEqual(current.read_bytes(), b"old application")
 

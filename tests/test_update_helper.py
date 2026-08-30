@@ -36,7 +36,10 @@ class UpdateHelperTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b"new")
             self.assertEqual(backup.read_bytes(), b"old")
             self.assertFalse(staged.exists())
-            self.assertEqual(launches, [(target, [UPDATE_CLEANUP_ARGUMENT])])
+            self.assertEqual(
+                launches,
+                [(target.resolve(), [UPDATE_CLEANUP_ARGUMENT])],
+            )
 
     def test_restores_previous_version_when_new_one_cannot_start(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -66,7 +69,7 @@ class UpdateHelperTests(unittest.TestCase):
 
             self.assertEqual(target.read_bytes(), b"old")
             self.assertFalse(backup.exists())
-            self.assertEqual(launches[-1], (target, []))
+            self.assertEqual(launches[-1], (target.resolve(), []))
 
     def test_rejects_backup_outside_application_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
