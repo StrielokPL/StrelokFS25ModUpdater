@@ -49,6 +49,7 @@ jobs:
         run: |
           packaging/dist/StrelokFS25ModUpdater --smoke-test
           packaging/dist/StrelokFS25ModUpdater --first-run-smoke-test
+          packaging/dist/StrelokFS25ModUpdater --task-smoke-test
       - name: Smoke-test Windows executable
         if: runner.os == 'Windows'
         shell: pwsh
@@ -57,6 +58,8 @@ jobs:
           & packaging/dist/StrelokFS25ModUpdater.exe --smoke-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & packaging/dist/StrelokFS25ModUpdater.exe --first-run-smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & packaging/dist/StrelokFS25ModUpdater.exe --task-smoke-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Name Windows executable
         if: runner.os == 'Windows'

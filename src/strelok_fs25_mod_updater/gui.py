@@ -157,6 +157,7 @@ class MainWindow(QMainWindow):
         self.update_checks = UpdateCheckService(self.github)
         self.installer = ModInstaller(self.github, self.history)
         self.thread_pool = QThreadPool.globalInstance()
+        self.active_tasks: set[Task] = set()
         self.busy_tasks = 0
 
         self.catalog = self.catalog_manager.current()
@@ -865,12 +866,14 @@ class MainWindow(QMainWindow):
         task.signals.error.connect(error or self._task_error)
         task.signals.status.connect(self._set_status)
         task.signals.progress.connect(self._set_progress)
-        task.signals.finished.connect(self._task_finished)
+        task.signals.finished.connect(lambda task=task: self._task_finished(task))
+        self.active_tasks.add(task)
         self.busy_tasks += 1
         self._update_busy_state()
         self.thread_pool.start(task)
 
-    def _task_finished(self) -> None:
+    def _task_finished(self, task: Task) -> None:
+        self.active_tasks.discard(task)
         self.busy_tasks = max(0, self.busy_tasks - 1)
         self.progress.setRange(0, 1)
         self.progress.setValue(0)

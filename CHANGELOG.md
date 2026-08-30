@@ -1,5 +1,11 @@
 # Historia zmian
 
+## 0.0.1a4 — stabilność zadań w tle
+
+- naprawiono losowe zamykanie GUI podczas sprawdzania repozytoriów;
+- aktywne zadania Qt są przechowywane do chwili dostarczenia wszystkich sygnałów;
+- dodano test obciążeniowy 64 równoległych zadań dla źródeł i gotowych programów.
+
 ## 0.0.1a3 — automatyczna aktualizacja aplikacji
 
 - dodano sprawdzanie nowych wydań updatera przy starcie i na żądanie;

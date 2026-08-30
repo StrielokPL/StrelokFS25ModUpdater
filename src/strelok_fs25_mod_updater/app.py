@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import gc
 import logging
 import os
 import sys
 import tempfile
+import time
 from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import QTimer
@@ -40,6 +42,7 @@ def _exception_hook(exc_type, exc_value, exc_traceback) -> None:
 def main() -> int:
     smoke_test = "--smoke-test" in sys.argv
     first_run_smoke_test = "--first-run-smoke-test" in sys.argv
+    task_smoke_test = "--task-smoke-test" in sys.argv
     cleanup_update_backup = "--cleanup-update-backup" in sys.argv
     temporary_profile = None
     if first_run_smoke_test:
@@ -55,6 +58,7 @@ def main() -> int:
     internal_arguments = {
         "--smoke-test",
         "--first-run-smoke-test",
+        "--task-smoke-test",
         "--cleanup-update-backup",
     }
     qt_arguments = [argument for argument in sys.argv if argument not in internal_arguments]
@@ -64,6 +68,7 @@ def main() -> int:
     application.setOrganizationName("StrelokPL")
 
     first_run_verified = False
+    task_smoke_verified = False
 
     def close_first_run_message() -> None:
         widget = application.activeModalWidget()
@@ -99,10 +104,48 @@ def main() -> int:
             application.quit()
 
         QTimer.singleShot(400, verify_first_run)
+    elif task_smoke_test:
+        def run_task_smoke_test() -> None:
+            remaining = 64
+            failed = False
+
+            def work(_signals):
+                time.sleep(0.02)
+                return True
+
+            def result(_value) -> None:
+                nonlocal remaining
+                remaining -= 1
+                if remaining == 0:
+                    QTimer.singleShot(250, verify_tasks)
+
+            def error(_message: str, _traceback_text: str) -> None:
+                nonlocal failed
+                failed = True
+                application.quit()
+
+            def verify_tasks() -> None:
+                nonlocal task_smoke_verified
+                task_smoke_verified = (
+                    not failed
+                    and remaining == 0
+                    and not window.active_tasks
+                    and window.busy_tasks == 0
+                )
+                application.quit()
+
+            for _index in range(64):
+                window._start_task(work, result, error=error)
+            gc.collect()
+            QTimer.singleShot(15000, application.quit)
+
+        QTimer.singleShot(0, run_task_smoke_test)
     else:
         QTimer.singleShot(0, window.start)
 
     exit_code = application.exec()
     if first_run_smoke_test and not first_run_verified:
+        return 1
+    if task_smoke_test and not task_smoke_verified:
         return 1
     return exit_code

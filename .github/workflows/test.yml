@@ -48,3 +48,4 @@ jobs:
         run: |
           python -m strelok_fs25_mod_updater --smoke-test
           python -m strelok_fs25_mod_updater --first-run-smoke-test
+          python -m strelok_fs25_mod_updater --task-smoke-test
