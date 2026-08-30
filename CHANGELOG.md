@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 0.0.1a3 — automatyczna aktualizacja aplikacji
+
+- dodano sprawdzanie nowych wydań updatera przy starcie i na żądanie;
+- dodano automatyczny wybór pliku dla Windowsa lub Linuksa;
+- dodano weryfikację rozmiaru oraz dostępnej sumy SHA-256;
+- dodano bezpieczną podmianę programu i ponowne uruchomienie;
+- przyszłe wydania stabilne nie będą automatycznie przechodzić na prerelease'y.
+
 ## 0.0.1a2 — wybór konkretnego wydania
 
 - dodano zapamiętywany wybór konkretnego taga wydania osobno dla każdego moda;

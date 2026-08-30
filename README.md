@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a2` jest pierwszym wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a3` jest pierwszym wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -23,6 +23,7 @@ Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 - kopie savegame'ów przed migracją oznaczoną jako ryzykowna;
 - blokadę aktualizacji podczas działania Farming Simulator 25;
 - wyświetlanie opisu wydania i changelogu z GitHuba.
+- automatyczną aktualizację samej aplikacji z podmianą i ponownym uruchomieniem.
 
 ## Ważna zasada
 
@@ -81,6 +82,10 @@ wydanie. Wersje z literowym sufiksem są automatycznie oznaczane jako prerelease
 
 Na typowym systemie Linux Mint wymagane biblioteki graficzne są już obecne. Jeżeli ręczne
 uruchomienie zgłosi brak `libEGL.so.1`, należy doinstalować systemowy pakiet `libegl1`.
+
+Od wersji `0.0.1a3` program sprawdza również własne wydania. Aktualizacja jest pobierana do
+folderu aplikacji, bezpiecznie podmieniana po weryfikacji rozmiaru i dostępnej sumy SHA-256,
+a następnie program uruchamia się ponownie. Ustawienia i folder modów nie są zmieniane.
 
 ## Oficjalny katalog
 

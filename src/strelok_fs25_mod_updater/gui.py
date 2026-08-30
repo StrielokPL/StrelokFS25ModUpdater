@@ -44,6 +44,12 @@ from .models import (
     UpdateCheck,
     UpdateState,
 )
+from .self_update import (
+    ApplicationUpdate,
+    ApplicationUpdateService,
+    PreparedApplicationUpdate,
+    SelfUpdateError,
+)
 from .storage import (
     AppSettings,
     ExternalSourcesStore,
@@ -147,6 +153,7 @@ class MainWindow(QMainWindow):
         self.catalog_manager = CatalogManager(config_dir() / "official_catalog.json")
         self.github = GitHubClient()
         self.catalog_updates = CatalogUpdateService(self.github, self.catalog_manager)
+        self.application_updates = ApplicationUpdateService(self.github)
         self.update_checks = UpdateCheckService(self.github)
         self.installer = ModInstaller(self.github, self.history)
         self.thread_pool = QThreadPool.globalInstance()
@@ -167,7 +174,10 @@ class MainWindow(QMainWindow):
         """Run startup actions after the main window has become visible."""
         self._show_first_run_warning()
         if check_updates:
-            QTimer.singleShot(250, self._startup_check)
+            QTimer.singleShot(
+                250,
+                lambda: self._begin_application_update_check(startup=True),
+            )
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -198,9 +208,14 @@ class MainWindow(QMainWindow):
         self.remove_external_button.clicked.connect(self._remove_external)
         self.rollback_button = QPushButton("Cofnij aktualizację")
         self.rollback_button.clicked.connect(self._rollback)
+        self.app_update_button = QPushButton("Aktualizuj aplikację")
+        self.app_update_button.clicked.connect(
+            lambda: self._begin_application_update_check(startup=False)
+        )
         toolbar.addWidget(self.check_button)
         toolbar.addWidget(self.install_button)
         toolbar.addStretch(1)
+        toolbar.addWidget(self.app_update_button)
         toolbar.addWidget(self.add_external_button)
         toolbar.addWidget(self.remove_external_button)
         toolbar.addWidget(self.rollback_button)
@@ -328,7 +343,106 @@ class MainWindow(QMainWindow):
             checks.append(check)
         self._populate_table(checks)
 
-    def _startup_check(self) -> None:
+    def _begin_application_update_check(self, *, startup: bool) -> None:
+        self._set_status("Sprawdzanie aktualizacji aplikacji…")
+
+        def work(_signals: TaskSignals):
+            return self.application_updates.check()
+
+        self._start_task(
+            work,
+            lambda update: self._application_update_checked(update, startup=startup),
+            error=lambda message, traceback_text: self._application_update_check_failed(
+                message,
+                traceback_text,
+                startup=startup,
+            ),
+        )
+
+    def _application_update_checked(
+        self,
+        update: ApplicationUpdate | None,
+        *,
+        startup: bool,
+    ) -> None:
+        if update is None:
+            self._set_status("Aplikacja jest aktualna")
+            if startup:
+                self._begin_catalog_check()
+            else:
+                QMessageBox.information(
+                    self,
+                    "Brak aktualizacji",
+                    "Masz najnowszą wersję aplikacji dla wybranego kanału.",
+                )
+            return
+
+        size = f"{update.size / (1024 * 1024):.1f} MB" if update.size else "nieznany"
+        release_kind = "prerelease" if update.prerelease else "wydanie stabilne"
+        notes = update.notes.strip()
+        notes_excerpt = f"\n\n{notes[:900]}" if notes else ""
+        answer = QMessageBox.question(
+            self,
+            "Dostępna aktualizacja aplikacji",
+            f"Dostępna jest wersja {update.tag} ({release_kind}).\n"
+            f"Rozmiar pobierania: {size}.\n\n"
+            "Czy pobrać aktualizację i ponownie uruchomić program?"
+            f"{notes_excerpt}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self._prepare_application_update(update)
+        elif startup:
+            self._begin_catalog_check()
+        else:
+            self._set_status("Pominięto aktualizację aplikacji")
+
+    def _application_update_check_failed(
+        self,
+        message: str,
+        traceback_text: str,
+        *,
+        startup: bool,
+    ) -> None:
+        logging.getLogger(__name__).error(
+            "Nie udało się sprawdzić aktualizacji aplikacji:\n%s",
+            traceback_text,
+        )
+        self._set_status(f"Nie sprawdzono aktualizacji aplikacji: {message}")
+        if startup:
+            self._begin_catalog_check()
+        else:
+            QMessageBox.warning(self, "Błąd aktualizacji", message)
+
+    def _prepare_application_update(self, update: ApplicationUpdate) -> None:
+        self._set_status(f"Pobieranie aktualizacji aplikacji {update.tag}…")
+
+        def work(signals: TaskSignals):
+            return self.application_updates.prepare(
+                update,
+                status=signals.status.emit,
+                progress=signals.progress.emit,
+            )
+
+        def success(prepared: PreparedApplicationUpdate) -> None:
+            QMessageBox.information(
+                self,
+                "Aktualizacja pobrana",
+                "Program zostanie teraz zamknięty, zaktualizowany i uruchomiony ponownie. "
+                "Ustawienia oraz pobrane mody pozostaną bez zmian.",
+            )
+            try:
+                prepared.apply_and_restart()
+            except SelfUpdateError as exc:
+                QMessageBox.critical(self, "Błąd aktualizacji", str(exc))
+                self._set_status(f"Błąd aktualizacji: {exc}")
+                return
+            QApplication.instance().quit()
+
+        self._start_task(work, success)
+
+    def _begin_catalog_check(self) -> None:
         self._set_status("Sprawdzanie wersji oficjalnej listy modów…")
 
         def work(_signals: TaskSignals):
@@ -782,6 +896,7 @@ class MainWindow(QMainWindow):
             self.add_external_button,
             self.remove_external_button,
             self.rollback_button,
+            self.app_update_button,
         ):
             button.setEnabled(not busy)
         self.table.setEnabled(not busy)

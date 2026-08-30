@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from . import __version__
 from .gui import MainWindow
+from .self_update import cleanup_previous_executable
 from .storage import data_dir
 
 
@@ -39,6 +40,7 @@ def _exception_hook(exc_type, exc_value, exc_traceback) -> None:
 def main() -> int:
     smoke_test = "--smoke-test" in sys.argv
     first_run_smoke_test = "--first-run-smoke-test" in sys.argv
+    cleanup_update_backup = "--cleanup-update-backup" in sys.argv
     temporary_profile = None
     if first_run_smoke_test:
         temporary_profile = tempfile.TemporaryDirectory(prefix="strelok-first-run-")
@@ -50,7 +52,11 @@ def main() -> int:
 
     _configure_logging()
     sys.excepthook = _exception_hook
-    internal_arguments = {"--smoke-test", "--first-run-smoke-test"}
+    internal_arguments = {
+        "--smoke-test",
+        "--first-run-smoke-test",
+        "--cleanup-update-backup",
+    }
     qt_arguments = [argument for argument in sys.argv if argument not in internal_arguments]
     application = QApplication(qt_arguments)
     application.setApplicationName("Strelok FS25 Mod Updater")
@@ -71,6 +77,17 @@ def main() -> int:
 
     window = MainWindow()
     window.show()
+    if cleanup_update_backup:
+        def cleanup_backup() -> None:
+            try:
+                cleanup_previous_executable()
+            except OSError:
+                logging.getLogger(__name__).warning(
+                    "Nie udało się usunąć kopii poprzedniej wersji",
+                    exc_info=True,
+                )
+
+        QTimer.singleShot(1500, cleanup_backup)
     if smoke_test:
         QTimer.singleShot(750, application.quit)
     elif first_run_smoke_test:
