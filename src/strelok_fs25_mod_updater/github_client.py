@@ -25,6 +25,10 @@ class GitHubError(RuntimeError):
     pass
 
 
+class GitHubNotFoundError(GitHubError):
+    """HTTP 404: a resource is missing or not publicly accessible."""
+
+
 @dataclass(frozen=True)
 class CatalogRelease:
     catalog_version: int
@@ -80,7 +84,7 @@ class GitHubClient:
                 url,
             )
             if exc.code == 404:
-                raise GitHubError(
+                raise GitHubNotFoundError(
                     "Repozytorium lub wydanie nie istnieje albo nie jest publiczne"
                 ) from exc
             if exc.code in (403, 429):

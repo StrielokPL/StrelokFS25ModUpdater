@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 4,
-  "minimumUpdaterVersion": "0.0.1a7",
+  "catalogVersion": 5,
+  "minimumUpdaterVersion": "0.0.1a9",
   "publishedAt": "2026-10-01",
   "mods": [
     {
@@ -38,7 +38,8 @@
         "Ursus C355-C360 Pack"
       ],
       "status": "active",
-      "description": "Oficjalny pakiet Ursus C355-C360 wydawany przez StrelokPL."
+      "description": "Oficjalny pakiet Ursus C355-C360 wydawany przez StrelokPL.",
+      "awaitingPublication": true
     }
   ]
 }

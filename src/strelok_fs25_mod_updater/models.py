@@ -35,6 +35,7 @@ class ModStatus(str, Enum):
 
 
 class UpdateState(str, Enum):
+    PREPARING = "preparing"
     UNKNOWN = "unknown"
     NOT_INSTALLED = "not_installed"
     CURRENT = "current"
@@ -90,6 +91,7 @@ class CatalogMod:
     replaces: tuple[str, ...] = ()
     replacement_id: str | None = None
     migration: MigrationSpec | None = None
+    awaiting_publication: bool = False
 
     def __post_init__(self) -> None:
         if not _ID_RE.fullmatch(self.id):
@@ -135,6 +137,7 @@ class CatalogMod:
                 str(data["replacementId"]) if data.get("replacementId") else None
             ),
             migration=MigrationSpec.from_dict(data.get("migration")),
+            awaiting_publication=data.get("awaitingPublication") is True,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -146,6 +149,8 @@ class CatalogMod:
             "assetPattern": self.asset_pattern,
             "status": self.status.value,
         }
+        if self.awaiting_publication:
+            result["awaitingPublication"] = True
         if self.description:
             result["description"] = self.description
         if self.mod_desc_titles:

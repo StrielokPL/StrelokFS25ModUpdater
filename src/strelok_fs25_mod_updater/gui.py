@@ -65,6 +65,7 @@ from .update_service import UpdateCheckService
 
 
 STATE_LABELS = {
+    UpdateState.PREPARING: "W przygotowaniu",
     UpdateState.UNKNOWN: "Nie sprawdzono",
     UpdateState.NOT_INSTALLED: "Do pobrania",
     UpdateState.CURRENT: "Aktualny",

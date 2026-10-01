@@ -54,6 +54,17 @@ Zgodny tytuł i autor StrelokPL oznaczają mod zarządzany. Zgodny tytuł bez St
 oryginalny mod możliwy do zastąpienia po ostrzeżeniu i utworzeniu kopii. Niezgodny tytuł blokuje
 automatyczną podmianę.
 
+## Oczekiwanie na publikację
+
+Opcjonalne `"awaitingPublication": true` oznacza mod przygotowywany do publikacji.
+Wpis zachowuje `"status": "active"`, więc aplikacja nadal sprawdza jego wydania.
+Od updatera `0.0.1a9` odpowiedź HTTP 404 dla takiego wpisu daje status
+„W przygotowaniu”. GitHub nie pozwala anonimowo rozróżnić repozytorium prywatnego
+od nieistniejącego; oznaczenie w katalogu jest świadomą deklaracją wydawcy.
+Inne błędy (sieć, limit API, serwer) pozostają błędami. Po udostępnieniu
+repozytorium aplikacja automatycznie korzysta z wydań podczas kolejnego sprawdzenia,
+bez zmiany katalogu. Brak pasującej paczki lub wybranego kanału nadal daje zwykły komunikat.
+
 ## Statusy historyczne
 
 - `active` — normalnie rozwijany;

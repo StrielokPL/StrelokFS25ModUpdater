@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
+from unittest.mock import Mock
+
+from strelok_fs25_mod_updater.github_client import GitHubError, GitHubNotFoundError
 
 from strelok_fs25_mod_updater.models import (
     CatalogMod,
@@ -61,6 +65,37 @@ class UpdateServiceTests(unittest.TestCase):
             title="Test mod",
             kind=kind,
         )
+
+    def test_preparing_only_for_marked_404(self) -> None:
+        for marked, error, expected in (
+            (True, GitHubNotFoundError("404"), UpdateState.PREPARING),
+            (False, GitHubNotFoundError("404"), UpdateState.ERROR),
+            (True, GitHubError("Limit API lub błąd sieci"), UpdateState.ERROR),
+        ):
+            with self.subTest(marked=marked, error=type(error)):
+                mod = replace(self.mod, awaiting_publication=marked)
+                client = Mock()
+                client.releases_for_mod.side_effect = error
+                check = UpdateCheckService(client).check_all((mod,), {}, {})[0]
+                self.assertEqual(check.state, expected)
+                self.assertIsNone(check.selected_release)
+
+    def test_preparing_mod_becomes_available_after_publication(self) -> None:
+        mod = replace(self.mod, awaiting_publication=True)
+        client = Mock()
+        client.releases_for_mod.side_effect = [
+            GitHubNotFoundError("404"), [release("1.0.0.0")]
+        ]
+        service = UpdateCheckService(client)
+        self.assertEqual(service.check_all((mod,), {}, {})[0].state, UpdateState.PREPARING)
+        check = service.check_all((mod,), {}, {})[0]
+        self.assertEqual(check.state, UpdateState.NOT_INSTALLED)
+        self.assertEqual(check.selected_release.tag, "1.0.0.0")
+
+    def test_preparing_flag_survives_catalog_roundtrip(self) -> None:
+        mod = replace(self.mod, awaiting_publication=True)
+        self.assertTrue(CatalogMod.from_dict(mod.to_dict()).awaiting_publication)
+        self.assertFalse(CatalogMod.from_dict(self.mod.to_dict()).awaiting_publication)
 
     def test_stable_channel_ignores_prerelease(self) -> None:
         service = UpdateCheckService(

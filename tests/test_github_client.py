@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from urllib.error import HTTPError
+from unittest.mock import patch
 
-from strelok_fs25_mod_updater.github_client import GitHubClient
+from strelok_fs25_mod_updater.github_client import GitHubClient, GitHubError, GitHubNotFoundError
 from strelok_fs25_mod_updater.models import CatalogMod
 
 
@@ -35,6 +37,15 @@ class GitHubClientTests(unittest.TestCase):
             repository="StrielokPL/Test",
             asset_pattern="FS25_Test*.zip",
         )
+
+    def test_http_404_is_distinct_from_other_failures(self) -> None:
+        for code in (404, 403, 429, 500):
+            with self.subTest(code=code):
+                error = HTTPError("https://api.github.com/test", code, "test", {}, None)
+                with patch("urllib.request.urlopen", side_effect=error):
+                    with self.assertRaises(GitHubError) as caught:
+                        GitHubClient().list_releases("owner/repo")
+                self.assertEqual(isinstance(caught.exception, GitHubNotFoundError), code == 404)
 
     def test_release_asset_is_selected_instead_of_source_archives(self) -> None:
         client = FixtureClient(

@@ -1,5 +1,12 @@
 # Historia zmian
 
+## 0.0.1a9 — mody w przygotowaniu
+
+- katalog może oznaczyć mod oczekujący na publikację (`awaitingPublication`);
+- dla takiego wpisu odpowiedź HTTP 404 daje status „W przygotowaniu”;
+- po upublicznieniu repozytorium kolejne sprawdzenie automatycznie odczytuje wydania;
+- pozostałe błędy połączeń i nieoznaczone niedostępne repozytoria nadal zgłaszają błąd.
+
 ## 0.0.1a8 — czytelniejszy brak stabilnego wydania
 
 - gdy repo zawiera wyłącznie prerelease'y, aplikacja pokazuje najnowszą wersję testową;

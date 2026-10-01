@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 
-from .github_client import GitHubClient, GitHubError
+from .github_client import GitHubClient, GitHubError, GitHubNotFoundError
 from .models import (
     CatalogMod,
     LocalMod,
@@ -76,6 +76,15 @@ class UpdateCheckService:
             try:
                 releases = self.client.releases_for_mod(mod)
             except GitHubError as exc:
+                if mod.awaiting_publication and isinstance(exc, GitHubNotFoundError):
+                    check.state = UpdateState.PREPARING
+                    check.message = (
+                        "Mod jest w przygotowaniu. Repozytorium nie jest jeszcze publicznie "
+                        "dostępne. Dostępność zostanie sprawdzona ponownie przy odświeżeniu."
+                    )
+                    logger.info("MOD AWAITING PUBLICATION mod_id=%s", mod.id)
+                    result.append(check)
+                    continue
                 logger.error(
                     "MOD CHECK SOURCE ERROR mod_id=%s repository=%s error=%s",
                     mod.id,
