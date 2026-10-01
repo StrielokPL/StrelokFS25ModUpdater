@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 3,
+  "catalogVersion": 4,
   "minimumUpdaterVersion": "0.0.1a7",
   "publishedAt": "2026-10-01",
   "mods": [
@@ -27,6 +27,18 @@
       ],
       "status": "active",
       "description": "Oficjalny pakiet Ursus C-330/330M wydawany przez StrelokPL."
+    },
+    {
+      "id": "strelokpl.ursus355360",
+      "name": "Ursus C355-C360 Pack",
+      "archiveName": "FS25_UrsusC355xC360Pack.zip",
+      "repository": "StrielokPL/Ursus355360",
+      "assetPattern": "FS25_UrsusC355xC360Pack.zip",
+      "modDescTitles": [
+        "Ursus C355-C360 Pack"
+      ],
+      "status": "active",
+      "description": "Oficjalny pakiet Ursus C355-C360 wydawany przez StrelokPL."
     }
   ]
 }
