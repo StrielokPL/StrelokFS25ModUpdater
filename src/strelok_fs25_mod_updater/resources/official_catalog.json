@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 2,
+  "catalogVersion": 3,
   "minimumUpdaterVersion": "0.0.1a7",
-  "publishedAt": "2026-08-30",
+  "publishedAt": "2026-10-01",
   "mods": [
     {
       "id": "strelokpl.ursus16541954",
@@ -15,6 +15,18 @@
       ],
       "status": "active",
       "description": "Oficjalny pakiet Ursus 1654/1954 wydawany przez StrelokPL."
+    },
+    {
+      "id": "strelokpl.ursus330fs25",
+      "name": "Ursus C-330/330M",
+      "archiveName": "FS25_UrsusC330_330M_4x2.zip",
+      "repository": "StrielokPL/ursus330fs25",
+      "assetPattern": "FS25_UrsusC330_330M_4x2.zip",
+      "modDescTitles": [
+        "Ursus C-330/330M"
+      ],
+      "status": "active",
+      "description": "Oficjalny pakiet Ursus C-330/330M wydawany przez StrelokPL."
     }
   ]
 }
