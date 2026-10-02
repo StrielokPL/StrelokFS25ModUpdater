@@ -67,6 +67,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & packaging/dist/StrelokFS25ModUpdaterHelper.exe --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test frozen Windows update and restart
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean --noconfirm --onefile --paths src --distpath packaging/dist --workpath packaging/build/probe --specpath packaging --name UpdateProbe packaging/update_probe.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/test_frozen_update.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item packaging/dist/UpdateProbe.exe
       - name: Name Windows executable
         if: runner.os == 'Windows'
         shell: pwsh

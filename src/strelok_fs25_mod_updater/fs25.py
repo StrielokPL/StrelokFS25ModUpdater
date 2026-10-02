@@ -5,11 +5,13 @@ import logging
 import os
 import re
 import zipfile
+from dataclasses import replace
+from typing import Any
 from pathlib import Path
 from xml.etree import ElementTree
 
 from .models import CatalogMod, LocalMod, LocalModKind, SourceKind
-from .versioning import ModVersion
+from .versioning import ModVersion, matches_archive_version
 
 
 _SAVEGAME_RE = re.compile(r"^savegame\d+$", re.IGNORECASE)
@@ -152,7 +154,10 @@ def inspect_mod_archive(
     )
 
 
-def scan_known_mods(mods_directory: Path, mods: tuple[CatalogMod, ...]) -> dict[str, LocalMod]:
+def scan_known_mods(
+    mods_directory: Path, mods: tuple[CatalogMod, ...],
+    *, history: list[dict[str, Any]] | None = None,
+) -> dict[str, LocalMod]:
     result: dict[str, LocalMod] = {}
     logger = logging.getLogger(__name__)
     if not mods_directory.is_dir():
@@ -162,11 +167,30 @@ def scan_known_mods(mods_directory: Path, mods: tuple[CatalogMod, ...]) -> dict[
         if not archive.is_file():
             continue
         try:
-            result[mod.id] = inspect_mod_archive(
-                mod.id,
-                archive,
-                catalog_mod=mod,
-            )
+            local = inspect_mod_archive(mod.id, archive, catalog_mod=mod)
+            if local.kind is LocalModKind.MANAGED:
+                candidates = []
+                for event in reversed(history or []):
+                    if not isinstance(event, dict):
+                        continue
+                    version_text = event.get("version")
+                    version = (ModVersion.try_parse(version_text)
+                               if isinstance(version_text, str) else None)
+                    if (event.get("modId") == mod.id
+                            and event.get("archiveName") == mod.archive_name
+                            and event.get("sha256") and version and version.suffix
+                            and matches_archive_version(
+                                local.version, version, prerelease=bool(event.get("prerelease"))
+                            )):
+                        candidates.append((event, version))
+                if candidates:
+                    digest = sha256_file(archive)
+                    for event, version in candidates:
+                        if digest == event["sha256"]:
+                            local = replace(local, version=version,
+                                            version_text=version.raw, sha256=digest)
+                            break
+            result[mod.id] = local
         except (OSError, ValueError) as exc:
             logger.warning(
                 "MOD ARCHIVE SKIPPED mod_id=%s archive=%s error=%s",

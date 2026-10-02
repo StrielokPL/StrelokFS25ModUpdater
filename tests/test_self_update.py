@@ -218,6 +218,7 @@ class ApplicationUpdateTests(unittest.TestCase):
             current.write_bytes(b"old application")
             new_application = root / "new-application"
             new_application.write_bytes(b"MZnew application")
+            (root / WINDOWS_HELPER_NAME).write_bytes(b"MZstale helper")
             new_helper = root / "new-helper"
             new_helper.write_bytes(b"MZupdate helper")
             update = ApplicationUpdate(
@@ -279,16 +280,54 @@ class ApplicationUpdateTests(unittest.TestCase):
                 helper_path=helper,
             )
 
+            def start_helper(arguments, **kwargs):
+                Path(arguments[arguments.index("--ready-file") + 1]).write_text("ready")
+                return mock.Mock()
+
             with mock.patch(
-                "strelok_fs25_mod_updater.self_update.subprocess.Popen"
+                "strelok_fs25_mod_updater.self_update.subprocess.Popen",
+                side_effect=start_helper,
             ) as popen:
                 prepared.apply_and_restart()
+            self.assertEqual(popen.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+            self.assertTrue(staged.with_suffix(".proceed").is_file())
 
             arguments = popen.call_args.args[0]
             self.assertEqual(arguments[0], str(helper))
             self.assertNotIn("powershell.exe", [item.casefold() for item in arguments])
             self.assertIn("--old-pid", arguments)
             self.assertIn("--staged", arguments)
+
+    def test_linux_restart_uses_independent_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target, staged = root / "app", root / "new"
+            target.write_bytes(b"old")
+            staged.write_bytes(b"new")
+            update = ApplicationUpdate("v2", ModVersion.parse("2"), False, "", "", "app", "https://example.invalid")
+            prepared = PreparedApplicationUpdate(update, staged, target, "posix")
+            with mock.patch("strelok_fs25_mod_updater.self_update.subprocess.Popen") as popen:
+                prepared.apply_and_restart()
+            self.assertEqual(popen.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+            self.assertEqual(target.read_bytes(), b"new")
+            self.assertEqual(prepared.backup_path.read_bytes(), b"old")
+
+    def test_windows_helper_failure_keeps_old_application(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target, staged, helper = (root / name for name in ("app.exe", "new.exe", "helper.exe"))
+            for path in (target, staged, helper):
+                path.write_bytes(path.name.encode())
+            update = ApplicationUpdate("v2", ModVersion.parse("2"), False, "", "", "app.exe", "https://example.invalid")
+            prepared = PreparedApplicationUpdate(update, staged, target, "nt", helper)
+            process = mock.Mock()
+            process.poll.return_value = 1
+            with mock.patch("strelok_fs25_mod_updater.self_update.subprocess.Popen", return_value=process):
+                with self.assertRaisesRegex(SelfUpdateError, "gotowości"):
+                    prepared.apply_and_restart()
+            self.assertEqual(target.read_bytes(), b"app.exe")
+            self.assertFalse(prepared.backup_path.exists())
+            self.assertFalse(staged.with_suffix(".proceed").exists())
 
     def test_previous_executable_cleanup_has_fixed_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

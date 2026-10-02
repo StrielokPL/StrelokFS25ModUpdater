@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a9` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a10` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -133,3 +133,16 @@ Pełny opis formatu i migracji znajduje się w [docs/CATALOG.md](docs/CATALOG.md
 - błędne pobranie nie powinno naruszyć istniejącego moda;
 - zewnętrzne źródła nie mogą nadać sobie statusu oficjalnego;
 - aktualizacja oficjalnego katalogu nie usuwa ustawień ani zewnętrznych repozytoriów użytkownika.
+
+### Aktualizacja ze starszych wersji na Windowsie
+
+Jeżeli aktualizacja wersji 0.0.1a9 lub starszej kończy się błędem ładowania
+`python312.dll`, zamknij program i pobierz paczkę Windows ZIP z najnowszego wydania.
+Wypakuj aplikację i helper do tego samego folderu, zastępując oba stare pliki.
+Wersja 0.0.1a10 naprawia uruchamianie procesów aktualizacji i potwierdza gotowość helpera.
+Ustawienia są przechowywane poza folderem aplikacji.
+
+Testowe wydania modów mogą mieć tag z sufiksem, np. `1.1.1.2P2`, i numeryczną
+wersję w `modDesc.xml`, np. `1.1.1.2`. Updater akceptuje to wyłącznie dla
+prerelease'ów o zgodnej części numerycznej; nadal weryfikuje autora, tytuł i SHA-256.
+Zainstalowany tag jest rozpoznawany z historii tylko wtedy, gdy zgadza się suma pliku.

@@ -2,16 +2,47 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import os
+from unittest.mock import patch
 from pathlib import Path
 
 from strelok_fs25_mod_updater.update_helper import (
     UPDATE_CLEANUP_ARGUMENT,
     UpdateHelperError,
     perform_update,
+    launch_application,
+    main,
 )
 
 
 class UpdateHelperTests(unittest.TestCase):
+    def test_restarted_application_has_independent_pyinstaller_environment(self) -> None:
+        with patch.dict(os.environ, {"_PYI_APPLICATION_HOME_DIR": "old extraction"}):
+            with patch("strelok_fs25_mod_updater.update_helper.subprocess.Popen") as popen:
+                launch_application(Path("app.exe"), [])
+            self.assertEqual(popen.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+            self.assertEqual(os.environ["_PYI_APPLICATION_HOME_DIR"], "old extraction")
+
+    def test_helper_waits_for_parent_authorization_before_touching_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target, staged = root / "app.exe", root / "new.exe"
+            target.write_bytes(b"old")
+            staged.write_bytes(b"new")
+            ready, proceed = staged.with_suffix(".ready"), staged.with_suffix(".proceed")
+            with patch("strelok_fs25_mod_updater.update_helper._configure_logging"), patch(
+                "strelok_fs25_mod_updater.update_helper.perform_update"
+            ) as perform, patch("strelok_fs25_mod_updater.update_helper._show_error"), patch(
+                "strelok_fs25_mod_updater.update_helper.time.monotonic", side_effect=[0, 41]
+            ):
+                result = main(["--old-pid", "1", "--target", str(target), "--staged", str(staged),
+                    "--backup", str(root / ".app.exe.previous"),
+                    "--ready-file", str(ready), "--proceed-file", str(proceed)])
+            self.assertEqual(result, 1)
+            perform.assert_not_called()
+            self.assertEqual(target.read_bytes(), b"old")
+            self.assertFalse(ready.exists())
+
     def test_replaces_application_and_starts_new_version(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

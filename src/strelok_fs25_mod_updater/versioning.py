@@ -69,6 +69,13 @@ class ModVersion:
         return self.raw
 
 
+def matches_archive_version(archive: ModVersion, release: ModVersion, *, prerelease: bool) -> bool:
+    return archive == release or (
+        prerelease and bool(release.suffix) and not archive.suffix
+        and archive.numbers == release.numbers
+    )
+
+
 def is_newer(candidate: str, installed: str) -> bool:
     return ModVersion.parse(candidate) > ModVersion.parse(installed)
 

@@ -342,7 +342,10 @@ class MainWindow(QMainWindow):
 
     def _scan_local(self) -> None:
         directory = self._mods_directory()
-        self.local_mods = scan_known_mods(directory, self.mods) if directory else {}
+        self.local_mods = (
+            scan_known_mods(directory, self.mods, history=self.history.load())
+            if directory else {}
+        )
         self._populate_without_remote()
 
     def _populate_without_remote(self) -> None:
@@ -1014,7 +1017,8 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(
             self,
             "Błąd",
-            f"{message}\n\nSzczegóły zapisano w logu aplikacji.",
+            f"{message}\n\nLog: {data_dir() / 'strelok-fs25-mod-updater.log'}"
+            "\nPomoc → Otwórz folder logów lub Zapisz pakiet diagnostyczny…",
         )
         QApplication.instance().setProperty("last_task_traceback", traceback_text)
 

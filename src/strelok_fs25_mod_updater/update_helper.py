@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .storage import data_dir
+from .process_environment import independent_process_environment
 
 
 HELPER_LOG_NAME = "strelok-fs25-mod-updater-helper.log"
@@ -95,6 +96,7 @@ def launch_application(executable: Path, arguments: list[str]) -> None:
         stderr=subprocess.DEVNULL,
         close_fds=True,
         creationflags=creation_flags,
+        env=independent_process_environment(),
     )
 
 
@@ -171,6 +173,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--staged", type=Path)
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--ready-file", type=Path)
+    parser.add_argument("--proceed-file", type=Path)
     return parser
 
 
@@ -187,6 +191,24 @@ def main(arguments: list[str] | None = None) -> int:
     except OSError:
         _configure_logging(options.target.resolve().parent)
     try:
+        _validated_paths(options.target, options.staged, options.backup)
+        if options.ready_file is not None or options.proceed_file is not None:
+            expected_ready = options.staged.with_suffix(".ready").resolve()
+            expected_proceed = options.staged.with_suffix(".proceed").resolve()
+            if (options.ready_file is None or options.proceed_file is None
+                    or options.ready_file.resolve() != expected_ready
+                    or options.proceed_file.resolve() != expected_proceed):
+                raise UpdateHelperError("Nieprawidłowe ścieżki potwierdzenia aktualizacji")
+            expected_ready.write_text("ready", encoding="utf-8")
+            try:
+                deadline = time.monotonic() + 40.0
+                while not expected_proceed.is_file():
+                    if time.monotonic() >= deadline:
+                        raise UpdateHelperError("Aplikacja nie potwierdziła rozpoczęcia aktualizacji")
+                    time.sleep(0.1)
+            finally:
+                expected_ready.unlink(missing_ok=True)
+                expected_proceed.unlink(missing_ok=True)
         perform_update(
             old_process_id=options.old_pid,
             target=options.target,

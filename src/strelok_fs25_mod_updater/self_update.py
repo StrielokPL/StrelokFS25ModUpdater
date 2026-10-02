@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import time
 import shutil
 import stat
 import subprocess
@@ -13,6 +15,7 @@ from typing import Callable
 
 from . import __version__
 from .fs25 import sha256_file
+from .process_environment import independent_process_environment
 from .github_client import GitHubClient
 from .update_helper import UPDATE_CLEANUP_ARGUMENT, WINDOWS_HELPER_NAME
 from .versioning import ModVersion
@@ -80,6 +83,7 @@ class PreparedApplicationUpdate:
                 stderr=subprocess.DEVNULL,
                 close_fds=True,
                 start_new_session=True,
+                env=independent_process_environment(),
             )
         except BaseException as exc:
             target.unlink(missing_ok=True)
@@ -93,8 +97,12 @@ class PreparedApplicationUpdate:
         if helper is None or not helper.is_file():
             raise SelfUpdateError("Nie znaleziono helpera aktualizacji Windows")
         creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        ready = self.staged_path.with_suffix(".ready")
+        proceed = self.staged_path.with_suffix(".proceed")
+        ready.unlink(missing_ok=True)
+        proceed.unlink(missing_ok=True)
         try:
-            subprocess.Popen(
+            process = subprocess.Popen(
                 [
                     str(helper),
                     "--old-pid",
@@ -105,14 +113,36 @@ class PreparedApplicationUpdate:
                     str(self.staged_path),
                     "--backup",
                     str(backup),
+                    "--ready-file", str(ready),
+                    "--proceed-file", str(proceed),
                 ],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=True,
                 creationflags=creation_flags,
+                env=independent_process_environment(),
             )
+            deadline = time.monotonic() + 30.0
+            while not ready.is_file():
+                if process.poll() is not None:
+                    raise SelfUpdateError(
+                        "Helper aktualizacji zakończył się przed potwierdzeniem gotowości. "
+                        "Poprzednia wersja aplikacji pozostaje uruchomiona."
+                    )
+                if time.monotonic() >= deadline:
+                    raise SelfUpdateError(
+                        "Helper aktualizacji nie potwierdził gotowości w ciągu 30 sekund. "
+                        "Aplikacja pozostaje uruchomiona."
+                    )
+                time.sleep(0.1)
+            proceed.write_text("proceed", encoding="utf-8")
+            logging.getLogger(__name__).info("UPDATE HELPER READY pid=%s", process.pid)
+        except SelfUpdateError:
+            logging.getLogger(__name__).exception("UPDATE HELPER START FAILED")
+            raise
         except OSError as exc:
+            logging.getLogger(__name__).exception("UPDATE HELPER LAUNCH FAILED")
             self.staged_path.unlink(missing_ok=True)
             raise SelfUpdateError(
                 f"Nie udało się uruchomić helpera aktualizacji: {exc}"
@@ -245,37 +275,31 @@ class ApplicationUpdateService:
                 self._verify_windows_executable(downloaded, "aplikacji")
                 os.replace(downloaded, staged)
                 helper_path = target.parent / WINDOWS_HELPER_NAME
-                helper_ready = (
-                    helper_path.is_file()
-                    and helper_path.stat().st_size > 0
-                    and self._has_windows_header(helper_path)
+                if not update.helper_download_url:
+                    raise SelfUpdateError(
+                        "Wydanie nie zawiera helpera aktualizacji Windows"
+                    )
+                if status:
+                    status("Pobieranie helpera aktualizacji…")
+                helper_downloaded = target.parent / (
+                    f".{WINDOWS_HELPER_NAME}.{token}.download"
                 )
-                if not helper_ready:
-                    if not update.helper_download_url:
-                        raise SelfUpdateError(
-                            "Wydanie nie zawiera helpera aktualizacji Windows"
-                        )
-                    if status:
-                        status("Pobieranie helpera aktualizacji…")
-                    helper_downloaded = target.parent / (
-                        f".{WINDOWS_HELPER_NAME}.{token}.download"
-                    )
-                    self.client.download(
-                        update.helper_download_url,
-                        helper_downloaded,
-                        progress=progress,
-                    )
-                    self._verify_file(
-                        helper_downloaded,
-                        expected_size=update.helper_size,
-                        digest=update.helper_digest,
-                        description="helpera aktualizacji",
-                    )
-                    self._verify_windows_executable(
-                        helper_downloaded,
-                        "helpera aktualizacji",
-                    )
-                    os.replace(helper_downloaded, helper_path)
+                self.client.download(
+                    update.helper_download_url,
+                    helper_downloaded,
+                    progress=progress,
+                )
+                self._verify_file(
+                    helper_downloaded,
+                    expected_size=update.helper_size,
+                    digest=update.helper_digest,
+                    description="helpera aktualizacji",
+                )
+                self._verify_windows_executable(
+                    helper_downloaded,
+                    "helpera aktualizacji",
+                )
+                os.replace(helper_downloaded, helper_path)
             else:
                 self._stage_linux_executable(downloaded, staged, target)
             return PreparedApplicationUpdate(

@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 0.0.1a10 — aktualizacje Windows i testowe wydania modów
+
+- helper i restart aplikacji otrzymują niezależne środowisko PyInstaller;
+- Windows pobiera helper zgodny z wydaniem i czeka na jego gotowość przed zamknięciem GUI;
+- tag testowy (np. 1.1.1.2P2) może odpowiadać numerycznej wersji XML (1.1.1.2);
+- historia i SHA-256 pozwalają rozpoznać zainstalowaną wersję testową przy kolejnym skanowaniu;
+- błędy podają konkretne porównywane wersje i lokalizację logu.
+
 ## 0.0.1a9 — mody w przygotowaniu
 
 - katalog może oznaczyć mod oczekujący na publikację (`awaitingPublication`);

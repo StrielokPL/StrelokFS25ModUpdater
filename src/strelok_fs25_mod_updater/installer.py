@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 import shutil
 import subprocess
 import uuid
@@ -12,6 +13,7 @@ from .fs25 import inspect_mod_archive, savegame_directories_for, sha256_file
 from .github_client import GitHubClient
 from .models import CatalogMod, LocalMod, LocalModKind, ReleaseInfo, SourceKind
 from .storage import HistoryStore, data_dir
+from .versioning import matches_archive_version
 
 
 StatusCallback = Callable[[str], None]
@@ -98,9 +100,17 @@ class ModInstaller:
                 with_hash=True,
                 catalog_mod=mod,
             )
-            if downloaded.version != release.version:
+            logging.getLogger(__name__).info(
+                "MOD VALIDATE repository=%s tag=%s xml_version=%s prerelease=%s sha256=%s",
+                mod.repository, release.tag, downloaded.version_text,
+                release.prerelease, downloaded.sha256,
+            )
+            if not matches_archive_version(
+                downloaded.version, release.version, prerelease=release.prerelease
+            ):
                 raise InstallError(
-                    "Wersja w modDesc.xml pobranego archiwum nie odpowiada tagowi wydania"
+                    f"Wersja w modDesc.xml ({downloaded.version_text}) nie odpowiada "
+                    f"tagowi wydania ({release.tag}). Dotychczasowy mod nie został zmieniony."
                 )
             if (
                 mod.source is SourceKind.OFFICIAL
@@ -145,6 +155,8 @@ class ModInstaller:
                 "modId": mod.id,
                 "archiveName": mod.archive_name,
                 "version": release.tag,
+                "modDescVersion": downloaded.version_text,
+                "prerelease": release.prerelease,
                 "removedArchives": removed,
                 "backupDirectory": str(backup_dir) if backup_dir else "",
                 "savegamesBackedUp": bool(backup_savegames and backup_dir),
