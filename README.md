@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a10` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a11` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -146,3 +146,16 @@ Testowe wydania modów mogą mieć tag z sufiksem, np. `1.1.1.2P2`, i numeryczn�
 wersję w `modDesc.xml`, np. `1.1.1.2`. Updater akceptuje to wyłącznie dla
 prerelease'ów o zgodnej części numerycznej; nadal weryfikuje autora, tytuł i SHA-256.
 Zainstalowany tag jest rozpoznawany z historii tylko wtedy, gdy zgadza się suma pliku.
+
+### Opcje i przywracanie oryginalnego moda
+
+Przycisk **Opcje** obok **Wykryj** i **Wybierz…** zawiera aktualizację aplikacji,
+dodawanie i usuwanie zewnętrznych repozytoriów oraz **Cofnij aktualizację moda…**.
+Cofanie dotyczy paczek modów, nie wersji aplikacji.
+
+Jeśli updater wcześniej zastąpił oryginalny mod wydaniem StrelokPL i zachował jego
+kopię, lista **Kanał / wersja** udostępnia **Przywróć oryginalny mod…**.
+Opcja pojawia się wyłącznie dla zainstalowanego moda StrelokPL i istniejącej kopii
+o zgodnym tytule oraz oryginalnym autorze. Obsługiwane są również starsze kopie.
+Po potwierdzeniu obecna paczka trafia do kopii bezpieczeństwa, a oryginał wraca
+do folderu modów. Operację można cofnąć z menu Opcje.

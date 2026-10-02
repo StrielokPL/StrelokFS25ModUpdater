@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
+    QToolButton,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -218,23 +220,27 @@ class MainWindow(QMainWindow):
         self.check_button.clicked.connect(self._begin_release_check)
         self.install_button = QPushButton("Pobierz / aktualizuj zaznaczone")
         self.install_button.clicked.connect(self._install_selected)
-        self.add_external_button = QPushButton("Dodaj zewnętrzne repo")
-        self.add_external_button.clicked.connect(self._add_external)
-        self.remove_external_button = QPushButton("Usuń zewnętrzne")
-        self.remove_external_button.clicked.connect(self._remove_external)
-        self.rollback_button = QPushButton("Cofnij aktualizację")
-        self.rollback_button.clicked.connect(self._rollback)
-        self.app_update_button = QPushButton("Aktualizuj aplikację")
-        self.app_update_button.clicked.connect(
+        self.options_button = QToolButton()
+        self.options_button.setText("Opcje")
+        self.options_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.options_menu = QMenu(self.options_button)
+        self.app_update_action = self.options_menu.addAction("Aktualizuj aplikację")
+        self.app_update_action.triggered.connect(
             lambda: self._begin_application_update_check(startup=False)
         )
+        self.options_menu.addSeparator()
+        self.add_external_action = self.options_menu.addAction("Dodaj zewnętrzne repo…")
+        self.add_external_action.triggered.connect(self._add_external)
+        self.remove_external_action = self.options_menu.addAction("Usuń zewnętrzne repo…")
+        self.remove_external_action.triggered.connect(self._remove_external)
+        self.options_menu.addSeparator()
+        self.rollback_action = self.options_menu.addAction("Cofnij aktualizację moda…")
+        self.rollback_action.triggered.connect(self._rollback)
+        self.options_button.setMenu(self.options_menu)
+        path_layout.addWidget(self.options_button)
         toolbar.addWidget(self.check_button)
         toolbar.addWidget(self.install_button)
         toolbar.addStretch(1)
-        toolbar.addWidget(self.app_update_button)
-        toolbar.addWidget(self.add_external_button)
-        toolbar.addWidget(self.remove_external_button)
-        toolbar.addWidget(self.rollback_button)
         root.addLayout(toolbar)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
@@ -625,6 +631,9 @@ class MainWindow(QMainWindow):
                 "Wyłączone",
                 f"channel:{ReleaseChannel.DISABLED.value}",
             )
+            if (check.local and check.local.kind is LocalModKind.MANAGED
+                    and self.installer.find_original_backup(check.mod) is not None):
+                channel.addItem("Przywróć oryginalny mod…", "action:restore-original")
             selected_channel = self.settings.channel_for(check.mod.id)
             pinned_tag = self.settings.pinned_version_for(check.mod.id)
             if selected_channel is ReleaseChannel.PINNED and pinned_tag:
@@ -662,6 +671,18 @@ class MainWindow(QMainWindow):
 
     def _release_selection_changed(self, mod_id: str, combo: QComboBox) -> None:
         kind, _, value = str(combo.currentData()).partition(":")
+        if kind == "action" and value == "restore-original":
+            current_channel = self.settings.channel_for(mod_id)
+            current_data = (
+                f"release:{self.settings.pinned_version_for(mod_id)}"
+                if current_channel is ReleaseChannel.PINNED
+                else f"channel:{current_channel.value}"
+            )
+            combo.blockSignals(True)
+            combo.setCurrentIndex(max(0, combo.findData(current_data)))
+            combo.blockSignals(False)
+            QTimer.singleShot(0, lambda: self._restore_original(mod_id))
+            return
         if kind == "release" and value:
             self.settings.set_pinned_version(mod_id, value)
         elif kind == "channel":
@@ -883,6 +904,37 @@ class MainWindow(QMainWindow):
             self._reload_mod_list()
             self._scan_local()
 
+    def _restore_original(self, mod_id: str) -> None:
+        mod = next((item for item in self.mods if item.id == mod_id), None)
+        directory = self._mods_directory()
+        if mod is None or directory is None or self.busy_tasks:
+            return
+        original = self.installer.find_original_backup(mod)
+        if original is None:
+            QMessageBox.information(self, "Brak oryginału", "Kopia oryginalnego moda nie jest dostępna.")
+            self._scan_local()
+            return
+        answer = QMessageBox.question(
+            self, "Przywróć oryginalny mod",
+            f"Przywrócić oryginalny mod {mod.name}?\n\n"
+            f"Wersja: {original.version_text}\nAutor: {original.author}\n\n"
+            "Obecny mod zostanie zachowany w kopii bezpieczeństwa. "
+            "Przywrócenie można cofnąć w menu Opcje → Cofnij aktualizację moda.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        def work(_signals: TaskSignals):
+            return self.installer.restore_original(mod, directory)
+
+        def success(_result: object) -> None:
+            self._scan_local()
+            self._set_status(f"Przywrócono oryginalny mod: {mod.name}")
+
+        self._start_task(work, success, name="restore-original")
+
     def _rollback(self) -> None:
         events = [event for event in reversed(self.history.load()) if event.get("backupDirectory")]
         if not events:
@@ -898,7 +950,7 @@ class MainWindow(QMainWindow):
             for event in events
         ]
         selected, ok = QInputDialog.getItem(
-            self, "Cofnij aktualizację", "Wybierz operację:", labels, 0, False
+            self, "Cofnij aktualizację moda", "Wybierz operację:", labels, 0, False
         )
         if not ok:
             return
@@ -1029,10 +1081,11 @@ class MainWindow(QMainWindow):
             self.install_button,
             self.detect_button,
             self.browse_button,
-            self.add_external_button,
-            self.remove_external_button,
-            self.rollback_button,
-            self.app_update_button,
+            self.options_button,
+            self.add_external_action,
+            self.remove_external_action,
+            self.rollback_action,
+            self.app_update_action,
         ):
             button.setEnabled(not busy)
         self.table.setEnabled(not busy)

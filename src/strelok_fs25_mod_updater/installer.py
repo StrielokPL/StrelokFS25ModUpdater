@@ -173,6 +173,66 @@ class ModInstaller:
         finally:
             temporary.unlink(missing_ok=True)
 
+    def find_original_backup(self, mod: CatalogMod) -> LocalMod | None:
+        """Find a real original ZIP, including backups made before this feature existed."""
+        if mod.source is not SourceKind.OFFICIAL or not mod.mod_desc_titles:
+            return None
+        for event in reversed(self.history.load()):
+            if (not isinstance(event, dict) or event.get("modId") != mod.id
+                    or event.get("archiveName") != mod.archive_name
+                    or not event.get("backupDirectory")):
+                continue
+            candidate = Path(str(event["backupDirectory"])) / "mods" / mod.archive_name
+            try:
+                original = inspect_mod_archive(mod.id, candidate, catalog_mod=mod)
+            except (OSError, ValueError):
+                continue
+            if original.kind is LocalModKind.UNMANAGED_REPLACEABLE:
+                return original
+        return None
+
+    def restore_original(self, mod: CatalogMod, mods_directory: Path) -> dict[str, object]:
+        if is_fs25_running():
+            raise InstallError("Zamknij Farming Simulator 25 przed przywróceniem moda")
+        original = self.find_original_backup(mod)
+        if original is None:
+            raise InstallError("Nie znaleziono prawidłowej kopii oryginalnego moda")
+        target = mods_directory / mod.archive_name
+        try:
+            current = inspect_mod_archive(mod.id, target, catalog_mod=mod)
+        except (OSError, ValueError) as exc:
+            raise InstallError(f"Nie można sprawdzić obecnego moda: {exc}") from exc
+        if current.kind is not LocalModKind.MANAGED:
+            raise InstallError("Przywrócenie oryginału wymaga zainstalowanego moda StrelokPL")
+        temporary = mods_directory / f".{uuid.uuid4().hex}.{mod.archive_name}"
+        try:
+            shutil.copy2(original.path, temporary)
+            restored = inspect_mod_archive(mod.id, temporary, with_hash=True, catalog_mod=mod)
+            if restored.kind is not LocalModKind.UNMANAGED_REPLACEABLE:
+                raise InstallError("Kopia nie zawiera zgodnego oryginalnego moda")
+            backup = self._new_backup_dir(mod.id)
+            self._backup_files([target], backup / "mods")
+            os.replace(temporary, target)
+            event: dict[str, object] = {
+                "type": "restore-original",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "modId": mod.id,
+                "archiveName": mod.archive_name,
+                "version": restored.version_text,
+                "backupDirectory": str(backup),
+                "sha256": restored.sha256,
+                "originalBackup": str(original.path),
+                "savegamesBackedUp": False,
+            }
+            self.history.append(event)
+            return event
+        except InstallError:
+            raise
+        except (OSError, ValueError) as exc:
+            raise InstallError(str(exc)) from exc
+        finally:
+            temporary.unlink(missing_ok=True)
+
     def rollback(
         self,
         event: dict[str, object],

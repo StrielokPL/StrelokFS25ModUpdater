@@ -1,5 +1,11 @@
 # Historia zmian
 
+## 0.0.1a11 — menu opcji i przywracanie oryginału
+
+- akcje aplikacji, zewnętrznych repozytoriów i cofania aktualizacji moda przeniesiono do menu Opcje przy wyborze folderu;
+- lista wersji oferuje przywrócenie oryginalnego moda, jeżeli istnieje zgodna kopia;
+- opcja rozpoznaje także wcześniejsze kopie, zachowuje obecną paczkę i umożliwia cofnięcie przywrócenia.
+
 ## 0.0.1a10 — aktualizacje Windows i testowe wydania modów
 
 - helper i restart aplikacji otrzymują niezależne środowisko PyInstaller;
