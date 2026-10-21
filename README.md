@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a12` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a13` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -160,9 +160,11 @@ o zgodnym tytule oraz oryginalnym autorze. Obsługiwane są również starsze ko
 Po potwierdzeniu obecna paczka trafia do kopii bezpieczeństwa, a oryginał wraca
 do folderu modów. Wydanie StrelokPL można ponownie wybrać z listy wersji.
 
-## KingMods i zakładki
+## Paczki jako zakładki
 
-Główna zakładka obserwuje mody KingMods, otwiera linki ModsFire dla wybranych wersji
-i instaluje ręcznie pobrane ZIP-y z opcjonalną kopią poprzedniego moda. Lista może
-pochodzić z publicznego pliku TXT/JSON na GitHubie. Druga zakładka **Moje mody i edity**
-zachowuje obsługę GitHub Releases. [Instrukcja i format katalogu](docs/KINGMODS.md).
+Każda lista z repozytorium GitHub lub lokalnego pliku TXT/JSON ma własną zakładkę.
+Domyślnie aplikacja wczytuje listy **Miziuu** i **StrielokPL** z ich repozytoriów.
+Plik `mods.txt`: pierwszy wiersz to nazwa zakładki, kolejne to linki KingMods/ModsFire.
+**Opcje → Dodaj paczkę z GitHuba…** przyjmuje adres repozytorium (plik `mods.txt`)
+albo konkretnego pliku. **Wczytaj plik jako zakładkę…** dodaje listę lokalną.
+[Instrukcja i zasady adresów](docs/KINGMODS.md).

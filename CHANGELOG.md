@@ -1,5 +1,17 @@
 # Historia zmian
 
+## 0.0.1a13 — osobna zakładka dla każdej paczki
+
+- domyślne listy Miziuu i StrielokPL z nowych repozytoriów;
+- prosty `mods.txt`: nazwa zakładki w pierwszym wierszu, następnie linki;
+- import pliku lokalnego lub repozytorium jako niezależnej zakładki;
+- bezpośrednie linki ModsFire, z wersją odczytywaną z ręcznie pobranego ZIP-a;
+- obce paczki akceptują tylko HTTPS KingMods/ModsFire; walidacja domen i przekierowań;
+- dokładnie wskazana oficjalna lista StrielokPL może zawierać publiczne repo Ursusa 1654/1954;
+- usuwanie pozycji i zmiana nazwy w źródle są odzwierciedlane bez scalania paczek;
+- migracja wcześniejszych obserwacji do osobnej zakładki;
+- Linux budowany na Ubuntu 22.04 z dołączonym libxcb-cursor0.
+
 ## 0.0.1a12 — KingMods i zakładki
 
 - główna zakładka obserwowanych modów KingMods z filtrem instalacji i powiązaniami editów;

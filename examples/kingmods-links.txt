@@ -1,3 +1,5 @@
+Przykładowa paczka
 # Jeden link KingMods na linię. Nazwa i plik ZIP zostaną odczytane automatycznie.
 https://www.kingmods.net/pl/fs25/mods/63913/ursus-c-330330m
 https://www.kingmods.net/pl/fs25/mods/61633/ursus-c355-c360-pack
+https://modsfire.com/xnKLKu6d2U89Ej4

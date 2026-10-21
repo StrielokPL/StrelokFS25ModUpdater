@@ -1,73 +1,102 @@
-# Obserwowanie modów KingMods
+# Paczki modów jako zakładki
 
-Główna zakładka **KingMods** zawiera obserwowane strony FS25 (na start C-330
-oraz C355–C360). Nie przeszukuje całego serwisu. **Moje mody i edity** zachowuje
-katalog i instalację wydań z GitHub Releases, w tym zewnętrzne repozytoria.
+Każda lista jest oddzielną zakładką. Listy nie są scalane. Domyślne źródła:
 
-- **Dodaj link KingMods…** dodaje pojedynczy mod.
-- **Importuj listę z GitHuba…** przyjmuje publiczny plik TXT lub JSON przez link
-  `https://github.com/OWNER/REPO/blob/main/plik.json` albo adres raw.
-- TXT: jeden link KingMods na linię; puste linie i komentarze `#` są pomijane.
-- JSON: obiekt `{"mods": [...]}` lub lista. Wpis może być linkiem albo obiektem
-  z polami `url`, `name`, `archiveName`, `modDescTitles`, `editId`.
-- `archiveName` to docelowa nazwa ZIP. Bez niej aplikacja odczytuje nazwę z
-  pierwszej strony pliku ModsFire. `modDescTitles` pozwala dodatkowo sprawdzić
-  tożsamość moda; zalecane dla katalogu współdzielonego.
-- `editId` wiąże oryginał z identyfikatorem w katalogu GitHub, np.
-  `strelokpl.ursus330fs25`. Dopasowanie działa także po nazwie archiwum.
+- **Miziuu**: https://github.com/StrielokPL/MiziuuModList
+- **StrielokPL**: https://github.com/StrielokPL/StrielokPLModList
 
-Gotowe przykłady: `examples/kingmods-links.txt` i `examples/kingmods-catalog.json`.
-Można skopiować je do osobnego repozytorium z samymi odnośnikami. Aplikacja nie
-wymaga haseł ani tokenów do publicznego katalogu.
+## Najprostszy format — mods.txt
 
-Adres katalogu jest zapamiętywany i sprawdzany razem z wersjami. Import scala
-wpisy według numeru moda KingMods, zachowując wcześniejsze metadane, gdy prosty
-wpis ich nie dostarcza. Usunięcie pozycji z pliku nie usuwa lokalnej obserwacji.
-Pozycja usunięta lokalnie wróci, jeśli nadal jest obecna w katalogu GitHub.
+Pierwszy niepusty wiersz to nazwa zakładki, potem po jednym adresie na wiersz:
 
-## Wersje i instalowanie
+```text
+Moja paczka
+https://www.kingmods.net/en/fs25/mods/63913/ursus-c-330330m
+https://modsfire.com/xnKLKu6d2U89Ej4
+```
 
-Sprawdzanie odbywa się po uruchomieniu i co 15 minut (można odznaczyć), a także
-przyciskiem **Sprawdź wersje**. Odpowiedzi są buforowane na 5 minut. Gdy aplikacja
-jest zajęta instalacją, automatyczne sprawdzenie poczeka. Błąd jednej strony nie
-zatrzymuje sprawdzania pozostałych. Ostatni odczyt z bieżącej sesji pozostaje w
- tabeli z oznaczeniem błędu. Błąd katalogu GitHub jest pokazany w pasku stanu.
+Puste wiersze i komentarze rozpoczynające się od `#` są pomijane. Maksymalnie
+200 modów, 4 MB pliku i 80 znaków nazwy. Plik należy zapisać jako UTF-8.
+KingMods i bezpośrednie ModsFire można mieszać w jednej liście.
 
-Wybierz numer wydania i **Otwórz wybraną wersję na ModsFire**. Link prowadzi do
-strony pliku wskazanej przez KingMods; pobieranie i generowanie linku odbywa się
-ręcznie w przeglądarce. Brak wybranej wersji nie przełącza automatycznie na inną.
+**Opcje → Dodaj paczkę z GitHuba…**: wklej adres publicznego repozytorium.
+Aplikacja odczyta `mods.txt` z domyślnej gałęzi. Można też wskazać konkretny plik
+TXT/JSON przez link GitHub `blob` albo `raw.githubusercontent.com`.
 
-**Wskaż pobrany ZIP i zainstaluj…**:
+**Opcje → Wczytaj plik jako zakładkę…**: wskaż lokalny TXT lub JSON. Zostaje
+zapamiętana ścieżka — kolejne odświeżenie odczyta aktualną zawartość tego pliku.
+Przeniesienie/usunięcie pliku powoduje komunikat błędu i zachowanie ostatnich danych.
+Nie należy usuwać pliku po imporcie, jeśli lista ma być dalej odświeżana.
 
-1. Jeśli istnieje poprzedni mod: **Tak** zachowuje jego kopię, **Nie** zastępuje
-   bez kopii, **Anuluj** przerywa operację.
-2. Aplikacja kopiuje pobrany plik do pliku tymczasowego w folderze modów,
-   sprawdza modDesc.xml, wersję, nazwę archiwum, znany tytuł i integralność ZIP.
-   Sufiksy przeglądarki, np. ` (1).zip`, są akceptowane.
-3. Dopiero po walidacji i wykonaniu wybranej kopii zastępuje docelowy ZIP
-   atomowo. Po sukcesie usuwa plik z miejsca pobrania — jest to przeniesienie.
-   Błąd walidacji/kopii/podmiany zachowuje poprzedniego moda i pobrany plik.
-4. Błąd usunięcia pliku z folderu pobierania jest zgłaszany jako ostrzeżenie po
-   udanej instalacji, nie jako błąd instalacji.
+**Opcje → Usuń bieżącą zakładkę…** usuwa subskrypcję, bez usuwania listy i modów.
+Usunięte zakładki domyślne nie wracają przy ponownym uruchomieniu. Ponowne wczytanie
+tego samego źródła wybiera istniejącą zakładkę. Różne źródła o identycznej nazwie
+pozostają osobnymi paczkami; ich adresy są widoczne nad tabelą.
 
-Kopie i historia znajdują się w folderze danych aplikacji (`backups`); menu
-**Pomoc → Otwórz folder logów** otwiera ten folder. Kopia oryginału powiązanego
-z editem jest widoczna w istniejącej funkcji **Przywróć oryginalny mod…**.
-Zwykła aktualizacja GitHub również pyta o zachowanie kopii. Migracje łączące
-kilka archiwów nadal wykonują wymagane kopie modów i zapisów gry.
+Każda paczka ma własne odświeżanie co 15 minut, filtr instalacji i wybór wersji.
+Nazwa i usunięcie wpisu w źródle są odzwierciedlane przy odświeżeniu. Usunięcie
+wpisu nie usuwa moda z dysku. Błąd listy zachowuje poprzednią poprawną zawartość.
+Błąd pojedynczej strony nie zatrzymuje pozostałych pozycji. Bufor HTTP: 5 minut.
 
-Filtr działa dla wszystkich, zainstalowanych lub niezainstalowanych modów.
-Kolumna **Edit StrelokPL** oznacza dostępne powiązanie w katalogu, nawet jeśli
-repozytorium editu jest w przygotowaniu. Stan osobno informuje, czy zainstalowana
-paczka ma autora StrielokPL. Numeracja editu nie jest porównywana z oryginałem.
+## KingMods, ModsFire i instalacja
 
-Ta zmiana instaluje całe oryginalne ZIP-y. Nie nakłada jeszcze łatek na oryginał
-ani nie zmienia sposobu publikacji Twoich editów na GitHubie.
+KingMods dostarcza listę wersji i odpowiadające im strony plików ModsFire.
+Bezpośredni link ModsFire wskazuje jeden plik; aplikacja nie zgaduje jego numeru
+wersji. Pokazuje „Wersja z ZIP-a”, a numer odczytuje z modDesc.xml przy imporcie.
 
-## Rozbudowa
+Użytkownik otwiera ModsFire, pobiera paczkę w przeglądarce i wybiera
+**Wskaż pobrany ZIP i zainstaluj…**. Jeśli mod jest już zainstalowany, wybiera
+kopię, podmianę bez kopii albo anulowanie. ZIP jest walidowany przed atomową
+podmianą; po sukcesie plik znika z miejsca pobrania (przeniesienie). Błąd
+walidacji, wykonania kopii lub podmiany zachowuje dotychczasowy mod i pobrany ZIP.
 
-`KingModsClient` i modele w `kingmods.py` są niezależne od Qt. `KingModsTab`
-obsługuje listę, filtry i akcje tego źródła. `MainWindow.register_source_tab`
-rejestruje zakładki po unikalnym identyfikatorze, umożliwiając dodawanie kolejnych.
-KingMods jest odczytywany z HTML, więc zmiana struktury serwisu może wymagać
-aktualizacji parsera. Nie ma obchodzenia logowania ani zabezpieczeń hostingu.
+Sprawdzane są: nazwa pliku (w tym dopuszczony sufiks przeglądarki „ (1)”),
+modDesc.xml, znany tytuł, integralność ZIP-a i numer wersji, jeśli podał go KingMods.
+Kopie znajdują się w folderze danych aplikacji, w `backups`. **Pomoc → Otwórz
+folder logów** otwiera ten folder.
+
+## Zasady adresów i zaufania
+
+Obce listy mogą zawierać tylko:
+
+- `https://www.kingmods.net/<język>/fs25/mods/<numer>/<nazwa>`
+- `https://modsfire.com/<identyfikator>`
+
+Dopuszczone są też kanoniczne warianty domen bez/z `www`. HTTP, inne domeny,
+porty inne niż 443, dane logowania w URL, zapytania/fragmenty i podszywające się
+domeny są odrzucane. Przekierowania odczytywane przez aplikację podlegają walidacji
+przed kolejnym żądaniem. Każdy link jest ponownie walidowany przed otwarciem
+przeglądarki. Zawartość zewnętrznej listy nie może rozszerzyć listy zaufanych domen.
+GitHub jest dopuszczony jako źródło tekstowego katalogu, nie dowolny hosting moda.
+
+Wyjątek dotyczy dokładnie oficjalnego `StrielokPL/StrielokPLModList`, pliku
+`mods.txt` na gałęzi `HEAD`/`main`: może wskazywać publiczny mod
+`https://github.com/StrielokPL/Ursus16541954`. Aplikacja pobiera jego wydania
+przez dotychczasowy klient GitHub. Nazwa zakładki „StrielokPL”, kopia pliku
+lokalnego lub inny katalog nie nadają tego uprawnienia. Nowe repozytoria GitHub
+wymagają jawnego rozszerzenia zaufanej konfiguracji aplikacji.
+
+Ta kontrola ogranicza adresy obsługiwane przez aplikację. Nie jest skanerem
+zawartości modów i nie kontroluje reklam lub dalszej nawigacji w przeglądarce.
+
+## Opcjonalny JSON
+
+```json
+{
+  "name": "Moja paczka",
+  "mods": [
+    {
+      "url": "https://www.kingmods.net/en/fs25/mods/63913/ursus-c-330330m",
+      "name": "Ursus C-330/330M",
+      "archiveName": "FS25_UrsusC330_330M_4x2.zip",
+      "modDescTitles": ["Ursus C-330/330M"]
+    },
+    "https://modsfire.com/xnKLKu6d2U89Ej4"
+  ]
+}
+```
+
+Metadane są opcjonalne: nazwa i archiwum zostają odczytane z KingMods/ModsFire.
+JSON podlega tym samym zasadom URL co TXT. Istniejące obserwacje z a12 są
+przenoszone do oddzielnej zakładki „Moje obserwowane”. Prywatne repozytoria editów
+nie są obecnie zawarte w domyślnej oficjalnej liście.

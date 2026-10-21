@@ -200,7 +200,9 @@ class ModInstaller:
             # Validate the staged copy, not a source that might still be downloading.
             shutil.copy2(source, temporary)
             downloaded = inspect_mod_archive(mod_id, temporary, with_hash=True)
-            if downloaded.version != ModVersion.parse(version):
+            if not version and not mod.url.startswith("https://modsfire.com/"):
+                raise InstallError("Brak numeru wybranej wersji")
+            if version and downloaded.version != ModVersion.parse(version):
                 raise InstallError(
                     f"Wybrano wersję {version}, ale ZIP zawiera {downloaded.version_text}. "
                     "Dotychczasowy mod nie został zmieniony."
@@ -229,7 +231,8 @@ class ModInstaller:
             os.replace(temporary, target)
             event = {
                 "type": "kingmods-import", "timestamp": datetime.now(timezone.utc).isoformat(),
-                "modId": mod_id, "archiveName": mod.archive, "version": version,
+                "modId": mod_id, "archiveName": mod.archive,
+                "version": version or downloaded.version_text,
                 "modDescVersion": downloaded.version_text, "sha256": downloaded.sha256,
                 "backupDirectory": str(backup_dir) if backup_dir else "",
                 "savegamesBackedUp": False, "kingmodsUrl": mod.url,

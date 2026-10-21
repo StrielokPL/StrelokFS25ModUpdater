@@ -14,6 +14,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from . import __version__
+from .models import ReleaseInfo
 from .storage import atomic_write_json, config_dir, read_json
 from .versioning import ModVersion
 
@@ -30,6 +31,8 @@ def kingmods_url(value: str) -> str:
         or parsed.username
         or parsed.password
         or parsed.port not in (None, 443)
+        or parsed.query
+        or parsed.fragment
         or not re.fullmatch(r"/[a-z]{2}/fs25/mods/\d+/[a-zA-Z0-9_-]+/?", parsed.path)
     ):
         raise KingModsError(
@@ -46,6 +49,8 @@ def modsfire_url(value: str) -> str:
         or parsed.username
         or parsed.password
         or parsed.port not in (None, 443)
+        or parsed.query
+        or parsed.fragment
         or not re.fullmatch(r"/[A-Za-z0-9]+/?", parsed.path)
     ):
         raise KingModsError("Nieprawidłowy adres pliku ModsFire.")
@@ -67,7 +72,11 @@ class KingMod:
     edit_id: str = ""
 
     def __post_init__(self):
-        object.__setattr__(self, "url", kingmods_url(self.url))
+        try:
+            canonical = kingmods_url(self.url)
+        except ValueError:
+            canonical = modsfire_url(self.url)
+        object.__setattr__(self, "url", canonical)
         if self.archive:
             archive_name(self.archive)
         if self.edit_id and not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", self.edit_id):
@@ -79,6 +88,8 @@ class KingMod:
 
     @property
     def id(self) -> str:
+        if self.url.startswith("https://modsfire.com/"):
+            return "modsfire." + self.url.rsplit("/", 1)[1]
         return "kingmods." + self.url.split("/")[6]
 
     @classmethod
@@ -100,6 +111,7 @@ class KingMod:
 class KingRelease:
     version: str
     url: str
+    github_release: ReleaseInfo | None = None
 
 
 @dataclass
@@ -171,6 +183,13 @@ class _SafeRedirect(urllib.request.HTTPRedirectHandler):
             )
         if urllib.parse.urlsplit(newurl).scheme != "https":
             raise KingModsError("Odrzucono przekierowanie bez HTTPS.")
+        if urllib.parse.urlsplit(newurl).hostname == "raw.githubusercontent.com":
+            github_list_url(newurl)
+        else:
+            try:
+                kingmods_url(newurl)
+            except ValueError:
+                modsfire_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -181,6 +200,13 @@ class KingModsClient:
         self.cache: dict[str, tuple[float, str]] = {}
 
     def read(self, url: str) -> str:
+        if urllib.parse.urlsplit(url).hostname == "raw.githubusercontent.com":
+            url = github_list_url(url)
+        else:
+            try:
+                url = kingmods_url(url)
+            except ValueError:
+                url = modsfire_url(url)
         cached = self.cache.get(url)
         if cached and time.monotonic() - cached[0] < self.cache_seconds:
             return cached[1]
@@ -206,7 +232,12 @@ class KingModsClient:
         return text
 
     def fetch(self, mod: KingMod) -> tuple[KingMod, KingPage]:
-        page = parse_page(self.read(kingmods_url(mod.url)))
+        direct = mod.url.startswith("https://modsfire.com/")
+        page = (
+            KingPage(mod.name, [KingRelease("", modsfire_url(mod.url))])
+            if direct
+            else parse_page(self.read(kingmods_url(mod.url)))
+        )
         name = mod.archive
         if not name:
             parser = _PageParser()
@@ -217,7 +248,7 @@ class KingModsClient:
                     "Nie odczytano nazwy ZIP z ModsFire. Uzupełnij archiveName w katalogu."
                 )
             name = archive_name(names[0])
-        return replace(mod, name=mod.name or page.name, archive=name), page
+        return replace(mod, name=mod.name or page.name or name[:-4], archive=name), page
 
 
 def github_list_url(value: str) -> str:

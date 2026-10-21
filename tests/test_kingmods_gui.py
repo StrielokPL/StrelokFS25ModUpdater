@@ -11,7 +11,7 @@ try:
 except ImportError:
     QApplication = None
 
-from strelok_fs25_mod_updater.kingmods import parse_page
+from strelok_fs25_mod_updater.kingmods import parse_page, DEFAULT_MODS
 from tests.helpers import make_mod_zip
 from tests.test_kingmods import HTML
 
@@ -33,7 +33,9 @@ class KingModsGuiTests(unittest.TestCase):
         with patch.object(MainWindow, '_initialise_path'):
             self.window = MainWindow()
         self.addCleanup(self.window.close)
-        self.tab = self.window.kingmods_tab
+        self.tab = self.window.pack_tabs[0]
+        self.tab.mods = list(DEFAULT_MODS)
+        self.tab.pack.mods = self.tab.mods
         self.mod = self.tab.mods[0]
         self.window.settings.mods_directory = tmp.name
         self.tab.pages[self.mod.id] = parse_page(HTML)
@@ -41,8 +43,8 @@ class KingModsGuiTests(unittest.TestCase):
         self.tab.table.selectRow(0)
 
     def test_tabs_filters_edit_navigation_and_versions(self):
-        self.assertEqual(self.window.tabs.tabText(0), 'KingMods')
-        self.assertEqual(self.window.tabs.tabText(1), 'Moje mody i edity')
+        self.assertEqual(self.window.tabs.tabText(0), 'Miziuu')
+        self.assertEqual(self.window.tabs.tabText(1), 'StrielokPL')
         self.window.register_source_tab('test', 'Dodatkowe źródło', QWidget())
         self.assertEqual(self.window.tabs.count(), 3)
         make_mod_zip(self.root / self.mod.archive, '0.0.5.1', title=self.mod.name,
@@ -50,7 +52,7 @@ class KingModsGuiTests(unittest.TestCase):
         self.tab.filter.setCurrentIndex(1)
         self.assertEqual(self.tab.table.rowCount(), 1)
         self.assertIn('edit StrelokPL', self.tab.table.item(0, 5).text())
-        self.assertEqual(self.tab.table.item(0, 4).text(), 'Tak')
+        self.assertEqual(self.tab.table.item(0, 4).text(), '—')
         self.tab.table.selectRow(0)
         combo = self.tab.table.cellWidget(0, 3)
         combo.setCurrentIndex(1)
@@ -58,7 +60,7 @@ class KingModsGuiTests(unittest.TestCase):
             self.tab.open_download()
             open_url.assert_called_once_with('https://modsfire.com/old123')
         self.tab.open_edit()
-        self.assertIs(self.window.tabs.currentWidget(), self.window.github_tab)
+        self.assertFalse(self.tab.edit_button.isEnabled())
         self.tab.filter.setCurrentIndex(2)
         self.assertEqual(self.tab.table.rowCount(), 1)
         self.assertNotEqual(self.tab.row_mods[0].id, self.mod.id)
