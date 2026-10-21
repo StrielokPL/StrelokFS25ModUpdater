@@ -82,6 +82,22 @@ class InstallerTests(unittest.TestCase):
                 self.assertFalse((root / "backups").exists())
                 self.assertEqual(list(mods.iterdir()), [target])
 
+    @patch("strelok_fs25_mod_updater.installer.is_fs25_running", return_value=False)
+    def test_github_install_without_backup(self, _running):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mods = root / "mods"
+            target = make_mod_zip(mods / "FS25_Test.zip", "1.0.0.0")
+            source = make_mod_zip(root / "release.zip", "1.1.0.0")
+            mod = CatalogMod("test.mod", "Test", target.name, "owner/repo", target.name)
+            installer = ModInstaller(FakeGitHubClient(source), HistoryStore(root / "history.json"),
+                                     root / "backups")
+            event = installer.install(mod, release("1.1.0.0", target.name), mods,
+                                      backup_existing=False)
+            self.assertEqual(event["backupDirectory"], "")
+            self.assertFalse(installer.backups_root.exists())
+            self.assertEqual(inspect_mod_archive(mod.id, target).version_text, "1.1.0.0")
+
     def test_update_creates_backup_and_can_rollback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a11` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a12` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -150,7 +150,7 @@ Zainstalowany tag jest rozpoznawany z historii tylko wtedy, gdy zgadza się suma
 ### Opcje i przywracanie oryginalnego moda
 
 Przycisk **Opcje** obok **Wykryj** i **Wybierz…** zawiera aktualizację aplikacji,
-dodawanie i usuwanie zewnętrznych repozytoriów oraz **Cofnij aktualizację moda…**.
+dodawanie i usuwanie zewnętrznych repozytoriów.
 Cofanie dotyczy paczek modów, nie wersji aplikacji.
 
 Jeśli updater wcześniej zastąpił oryginalny mod wydaniem StrelokPL i zachował jego
@@ -158,4 +158,11 @@ kopię, lista **Kanał / wersja** udostępnia **Przywróć oryginalny mod…**.
 Opcja pojawia się wyłącznie dla zainstalowanego moda StrelokPL i istniejącej kopii
 o zgodnym tytule oraz oryginalnym autorze. Obsługiwane są również starsze kopie.
 Po potwierdzeniu obecna paczka trafia do kopii bezpieczeństwa, a oryginał wraca
-do folderu modów. Operację można cofnąć z menu Opcje.
+do folderu modów. Wydanie StrelokPL można ponownie wybrać z listy wersji.
+
+## KingMods i zakładki
+
+Główna zakładka obserwuje mody KingMods, otwiera linki ModsFire dla wybranych wersji
+i instaluje ręcznie pobrane ZIP-y z opcjonalną kopią poprzedniego moda. Lista może
+pochodzić z publicznego pliku TXT/JSON na GitHubie. Druga zakładka **Moje mody i edity**
+zachowuje obsługę GitHub Releases. [Instrukcja i format katalogu](docs/KINGMODS.md).

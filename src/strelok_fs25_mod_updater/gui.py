@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextBrowser,
@@ -39,6 +40,7 @@ from .diagnostics import create_diagnostic_bundle
 from .fs25 import discover_mod_directories, scan_known_mods
 from .github_client import GitHubClient
 from .installer import ModInstaller
+from .kingmods_gui import KingModsTab
 from .models import (
     CatalogMod,
     LocalModKind,
@@ -184,6 +186,7 @@ class MainWindow(QMainWindow):
         """Run startup actions after the main window has become visible."""
         self._show_first_run_warning()
         if check_updates:
+            self.kingmods_tab.start()
             QTimer.singleShot(
                 250,
                 lambda: self._begin_application_update_check(startup=True),
@@ -215,6 +218,9 @@ class MainWindow(QMainWindow):
         path_layout.addWidget(self.browse_button)
         root.addLayout(path_layout)
 
+        self.tabs = QTabWidget()
+        self.github_tab = QWidget()
+        github_layout = QVBoxLayout(self.github_tab)
         toolbar = QHBoxLayout()
         self.check_button = QPushButton("Sprawdź aktualizacje")
         self.check_button.clicked.connect(self._begin_release_check)
@@ -234,14 +240,12 @@ class MainWindow(QMainWindow):
         self.remove_external_action = self.options_menu.addAction("Usuń zewnętrzne repo…")
         self.remove_external_action.triggered.connect(self._remove_external)
         self.options_menu.addSeparator()
-        self.rollback_action = self.options_menu.addAction("Cofnij aktualizację moda…")
-        self.rollback_action.triggered.connect(self._rollback)
         self.options_button.setMenu(self.options_menu)
         path_layout.addWidget(self.options_button)
         toolbar.addWidget(self.check_button)
         toolbar.addWidget(self.install_button)
         toolbar.addStretch(1)
-        root.addLayout(toolbar)
+        github_layout.addLayout(toolbar)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.table = QTableWidget(0, 8)
@@ -269,7 +273,12 @@ class MainWindow(QMainWindow):
         self.details.setPlaceholderText("Wybierz mod, aby zobaczyć opis i informacje o wydaniu.")
         splitter.addWidget(self.details)
         splitter.setSizes([480, 180])
-        root.addWidget(splitter, 1)
+        github_layout.addWidget(splitter, 1)
+        self.kingmods_tab = KingModsTab(self)
+        self.source_tabs = {}
+        self.register_source_tab("kingmods", "KingMods", self.kingmods_tab)
+        self.register_source_tab("github", "Moje mody i edity", self.github_tab)
+        root.addWidget(self.tabs, 1)
 
         status_layout = QHBoxLayout()
         self.status_label = QLabel("Gotowy")
@@ -280,6 +289,12 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(self.status_label, 1)
         status_layout.addWidget(self.progress)
         root.addLayout(status_layout)
+
+    def register_source_tab(self, source_id: str, title: str, widget: QWidget) -> None:
+        if source_id in self.source_tabs:
+            raise ValueError(f"Zakładka {source_id} już istnieje")
+        self.source_tabs[source_id] = widget
+        self.tabs.addTab(widget, title)
 
     def _show_first_run_warning(self) -> None:
         if self.settings.first_run_warning_seen:
@@ -353,6 +368,7 @@ class MainWindow(QMainWindow):
             if directory else {}
         )
         self._populate_without_remote()
+        self.kingmods_tab.populate()
 
     def _populate_without_remote(self) -> None:
         checks: list[UpdateCheck] = []
@@ -770,7 +786,7 @@ class MainWindow(QMainWindow):
                 "Zastąpienie oryginalnego moda",
                 "Wybrane pliki mają zgodny tytuł, ale nie są wydaniem StrelokPL:\n\n"
                 f"{changes}\n\n"
-                "Updater wykona kopię obecnego archiwum, a następnie zastąpi je "
+                "Updater zastąpi obecne archiwum "
                 "wydaniem StrelokPL. Zmiana może wpłynąć na sprzęt w savegame. "
                 "Czy kontynuować?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -799,7 +815,7 @@ class MainWindow(QMainWindow):
                 "Instalacja starszej wersji",
                 "Wybrano zmianę na starszą wersję:\n\n"
                 f"{changes}\n\n"
-                "Updater wykona kopię obecnego archiwum, ale starszy mod może nie być "
+                "Starszy mod może nie być "
                 "zgodny z aktualnym zapisem gry. Czy kontynuować?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -828,6 +844,20 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return
 
+        backup_existing = True
+        if any(check.local for check in selected) and not migrations:
+            answer = QMessageBox.question(
+                self, "Kopie poprzednich modów",
+                "Czy zachować kopie poprzednich modów przed podmianą?\n\n"
+                "Tak — wykonaj kopie. Nie — podmień bez kopii. Anuluj — przerwij.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Cancel:
+                return
+            backup_existing = answer == QMessageBox.StandardButton.Yes
+
         def work(signals: TaskSignals):
             events = []
             for index, check in enumerate(selected, start=1):
@@ -837,6 +867,7 @@ class MainWindow(QMainWindow):
                     check.selected_release,  # type: ignore[arg-type]
                     mods_directory,
                     replaced_mods=check.replaced_local_mods,
+                    backup_existing=backup_existing,
                     backup_savegames=bool(
                         check.replaced_local_mods
                         and check.mod.migration
@@ -919,7 +950,7 @@ class MainWindow(QMainWindow):
             f"Przywrócić oryginalny mod {mod.name}?\n\n"
             f"Wersja: {original.version_text}\nAutor: {original.author}\n\n"
             "Obecny mod zostanie zachowany w kopii bezpieczeństwa. "
-            "Przywrócenie można cofnąć w menu Opcje → Cofnij aktualizację moda.",
+            "Możesz ponownie wybrać wydanie StrelokPL z listy wersji.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -934,56 +965,6 @@ class MainWindow(QMainWindow):
             self._set_status(f"Przywrócono oryginalny mod: {mod.name}")
 
         self._start_task(work, success, name="restore-original")
-
-    def _rollback(self) -> None:
-        events = [event for event in reversed(self.history.load()) if event.get("backupDirectory")]
-        if not events:
-            QMessageBox.information(
-                self,
-                "Brak kopii",
-                "Nie ma aktualizacji możliwej do cofnięcia.",
-            )
-            return
-        labels = [
-            f"{event.get('timestamp', '')[:19]} — "
-            f"{event.get('archiveName', '')} — {event.get('version', '')}"
-            for event in events
-        ]
-        selected, ok = QInputDialog.getItem(
-            self, "Cofnij aktualizację moda", "Wybierz operację:", labels, 0, False
-        )
-        if not ok:
-            return
-        event = events[labels.index(selected)]
-        restore_saves = False
-        if event.get("savegamesBackedUp"):
-            answer = QMessageBox.question(
-                self,
-                "Przywrócić zapisy gry?",
-                "Ta migracja zawiera również kopie savegame'ów. Czy je przywrócić?\n\n"
-                "Obecne wersje tych zapisów zostaną zastąpione.",
-                QMessageBox.StandardButton.Yes
-                | QMessageBox.StandardButton.No
-                | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Cancel,
-            )
-            if answer == QMessageBox.StandardButton.Cancel:
-                return
-            restore_saves = answer == QMessageBox.StandardButton.Yes
-        mods_directory = self._mods_directory()
-        if mods_directory is None:
-            return
-
-        def work(_signals: TaskSignals):
-            self.installer.rollback(event, mods_directory, restore_savegames=restore_saves)
-            return True
-
-        def success(_result: object) -> None:
-            QMessageBox.information(self, "Przywrócono", "Poprzednie pliki zostały przywrócone.")
-            self._scan_local()
-            self._begin_release_check()
-
-        self._start_task(work, success, name="rollback")
 
     def _open_log_directory(self) -> None:
         directory = data_dir()
@@ -1084,11 +1065,11 @@ class MainWindow(QMainWindow):
             self.options_button,
             self.add_external_action,
             self.remove_external_action,
-            self.rollback_action,
             self.app_update_action,
         ):
             button.setEnabled(not busy)
         self.table.setEnabled(not busy)
+        self.kingmods_tab.set_busy(busy)
 
     def _set_status(self, text: str) -> None:
         logging.getLogger(__name__).info("STATUS %s", text)
