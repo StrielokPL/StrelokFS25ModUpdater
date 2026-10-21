@@ -113,7 +113,7 @@ class PackTests(unittest.TestCase):
             packs = store.load()
             self.assertEqual([p.name for p in packs], ["Miziuu", "StrielokPL"])
             file = Path(d) / "my.txt"
-            file.write_text("Własna paczka\n" + MF)
+            file.write_text("Własna paczka\n" + MF, encoding="utf-8")
             packs.append(ModPack(str(file), "Własna paczka", [KingMod(MF)], local=True))
             store.save(packs)
             loaded = store.load()
