@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a11` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a13` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -150,7 +150,7 @@ Zainstalowany tag jest rozpoznawany z historii tylko wtedy, gdy zgadza się suma
 ### Opcje i przywracanie oryginalnego moda
 
 Przycisk **Opcje** obok **Wykryj** i **Wybierz…** zawiera aktualizację aplikacji,
-dodawanie i usuwanie zewnętrznych repozytoriów oraz **Cofnij aktualizację moda…**.
+dodawanie i usuwanie zewnętrznych repozytoriów.
 Cofanie dotyczy paczek modów, nie wersji aplikacji.
 
 Jeśli updater wcześniej zastąpił oryginalny mod wydaniem StrelokPL i zachował jego
@@ -158,4 +158,13 @@ kopię, lista **Kanał / wersja** udostępnia **Przywróć oryginalny mod…**.
 Opcja pojawia się wyłącznie dla zainstalowanego moda StrelokPL i istniejącej kopii
 o zgodnym tytule oraz oryginalnym autorze. Obsługiwane są również starsze kopie.
 Po potwierdzeniu obecna paczka trafia do kopii bezpieczeństwa, a oryginał wraca
-do folderu modów. Operację można cofnąć z menu Opcje.
+do folderu modów. Wydanie StrelokPL można ponownie wybrać z listy wersji.
+
+## Paczki jako zakładki
+
+Każda lista z repozytorium GitHub lub lokalnego pliku TXT/JSON ma własną zakładkę.
+Domyślnie aplikacja wczytuje listy **Miziuu** i **StrielokPL** z ich repozytoriów.
+Plik `mods.txt`: pierwszy wiersz to nazwa zakładki, kolejne to linki KingMods/ModsFire.
+**Opcje → Dodaj paczkę z GitHuba…** przyjmuje adres repozytorium (plik `mods.txt`)
+albo konkretnego pliku. **Wczytaj plik jako zakładkę…** dodaje listę lokalną.
+[Instrukcja i zasady adresów](docs/KINGMODS.md).

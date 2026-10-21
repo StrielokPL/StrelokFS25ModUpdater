@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import re
 import logging
 import shutil
 import subprocess
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -76,6 +78,7 @@ class ModInstaller:
         *,
         replaced_mods: tuple[LocalMod, ...] = (),
         backup_savegames: bool = False,
+        backup_existing: bool = True,
         status: StatusCallback | None = None,
         progress: ProgressCallback | None = None,
     ) -> dict[str, object]:
@@ -130,7 +133,7 @@ class ModInstaller:
                 [target] + [item.path for item in replaced_mods]
             )
             existing = [path for path in affected if path.exists()]
-            if existing or (backup_savegames and replaced_mods):
+            if (existing and (backup_existing or replaced_mods)) or (backup_savegames and replaced_mods):
                 backup_dir = self._new_backup_dir(mod.id)
                 if status:
                     status("Tworzenie kopii bezpieczeństwa")
@@ -169,6 +172,84 @@ class ModInstaller:
         except InstallError:
             raise
         except BaseException as exc:
+            raise InstallError(str(exc)) from exc
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def install_local(
+        self, mod, version: str, source: Path, mods_directory: Path, *,
+        backup: bool, status: StatusCallback | None = None,
+    ) -> dict[str, object]:
+        """Validate a manually downloaded original, then atomically replace its ZIP."""
+        from .kingmods import archive_name
+        from .versioning import ModVersion
+
+        if is_fs25_running():
+            raise InstallError("Zamknij Farming Simulator 25 przed instalacją moda")
+        if not mods_directory.is_dir():
+            raise InstallError("Wskaż istniejący folder modów")
+        target = mods_directory / archive_name(mod.archive)
+        if target.is_symlink() or source.resolve() == target.resolve():
+            raise InstallError("Wskaż pobrany ZIP spoza docelowego pliku moda")
+        temporary = mods_directory / f".{uuid.uuid4().hex}.{mod.archive}"
+        backup_dir = None
+        mod_id = mod.edit_id or mod.id
+        try:
+            if status:
+                status("Sprawdzanie pobranego ZIP-a")
+            # Validate the staged copy, not a source that might still be downloading.
+            shutil.copy2(source, temporary)
+            downloaded = inspect_mod_archive(mod_id, temporary, with_hash=True)
+            if not version and not mod.url.startswith("https://modsfire.com/"):
+                raise InstallError("Brak numeru wybranej wersji")
+            if version and downloaded.version != ModVersion.parse(version):
+                raise InstallError(
+                    f"Wybrano wersję {version}, ale ZIP zawiera {downloaded.version_text}. "
+                    "Dotychczasowy mod nie został zmieniony."
+                )
+            titles = {" ".join(t.split()).casefold() for t in mod.titles}
+            if titles and " ".join(downloaded.title.split()).casefold() not in titles:
+                raise InstallError("ZIP zawiera inny mod niż wybrana pozycja KingMods")
+            # Browser suffixes such as ' (1)' are permitted; unrelated filenames are not.
+            source_name = re.sub(r" \(\d+\)(?=\.zip$)", "", source.name, flags=re.I)
+            if source_name.casefold() != mod.archive.casefold():
+                raise InstallError(f"Oczekiwano archiwum {mod.archive}")
+            with zipfile.ZipFile(temporary) as archive:
+                if sum(i.file_size for i in archive.infolist()) > 20 * 1024**3:
+                    raise InstallError("Rozpakowana zawartość ZIP-a przekracza 20 GB")
+                if archive.testzip() is not None:
+                    raise InstallError("Archiwum ZIP jest uszkodzone")
+            if target.exists():
+                current = inspect_mod_archive(mod_id, target)
+                if current.title.casefold() != downloaded.title.casefold():
+                    raise InstallError("Istniejący plik zawiera inny mod; podmiana zablokowana")
+                if backup:
+                    if status:
+                        status("Tworzenie kopii poprzedniego moda")
+                    backup_dir = self._new_backup_dir(mod_id)
+                    self._backup_files([target], backup_dir / "mods")
+            os.replace(temporary, target)
+            event = {
+                "type": "kingmods-import", "timestamp": datetime.now(timezone.utc).isoformat(),
+                "modId": mod_id, "archiveName": mod.archive,
+                "version": version or downloaded.version_text,
+                "modDescVersion": downloaded.version_text, "sha256": downloaded.sha256,
+                "backupDirectory": str(backup_dir) if backup_dir else "",
+                "savegamesBackedUp": False, "kingmodsUrl": mod.url,
+            }
+            # Installation has committed: report later metadata/cleanup failures separately.
+            try:
+                self.history.append(event)
+            except OSError:
+                logging.getLogger(__name__).exception("Nie zapisano historii importu KingMods")
+                event["historyWarning"] = True
+            try:
+                source.unlink()
+            except OSError:
+                logging.getLogger(__name__).exception("Nie usunięto pobranego ZIP-a %s", source)
+                event["sourceRetained"] = str(source)
+            return event
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
             raise InstallError(str(exc)) from exc
         finally:
             temporary.unlink(missing_ok=True)

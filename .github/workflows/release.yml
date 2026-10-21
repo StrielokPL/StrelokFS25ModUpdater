@@ -23,7 +23,7 @@ jobs:
         include:
           - os: windows-latest
             artifact: StrelokFS25ModUpdater-Windows-x64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact: StrelokFS25ModUpdater-Linux-x64
     runs-on: ${{ matrix.os }}
     steps:
