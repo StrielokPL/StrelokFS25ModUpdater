@@ -89,6 +89,15 @@ class KingModsGuiTests(unittest.TestCase):
         combo.setCurrentIndex(combo.findData('1.9.0.0'))
         self.assertIn('Nowe elementy oryginału', self.tab.details.text())
 
+    def test_installed_original_is_assessed_separately_from_selected_source(self):
+        make_mod_zip(self.root / self.mod.archive, '1.9.1.0', title=self.mod.name, author='Miziuu')
+        self.tab.selections.clear()
+        self.tab.populate()
+        self.tab.table.selectRow(0)
+        self.assertIn('Niekompatybilna', self.tab.table.item(0, 1).toolTip())
+        self.assertIn('Źródłowa', self.tab.table.item(0, 6).text())
+        self.assertIn('Zainstalowany oryginał: Niekompatybilna', self.tab.details.text())
+
     def test_backup_choice_and_cancel(self):
         make_mod_zip(self.root / self.mod.archive, '1.0.0.0', title=self.mod.name)
         for answer, expected in [(QMessageBox.StandardButton.Yes, True),

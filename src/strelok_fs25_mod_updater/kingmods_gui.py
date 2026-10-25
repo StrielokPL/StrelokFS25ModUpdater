@@ -81,7 +81,7 @@ class KingModsTab(QWidget):
                 "Wersja do pobrania",
                 "Edit StrelokPL",
                 "Stan",
-                "Zgodność wybranej wersji z editem",
+                "Zgodność wyboru",
             ]
         )
         self.table.horizontalHeader().moveSection(6, 4)
@@ -161,6 +161,17 @@ class KingModsTab(QWidget):
         if not profile or not version:
             return None
         return profile.assess(version)
+
+    def installed_assessment(self, mod, local):
+        profile = self.compatibility_profile(mod)
+        if not profile or not local or _is_strielokpl_author(local.author):
+            return None
+        if local.version == ModVersion.parse(profile.source_xml_version):
+            return profile.assess(profile.source_version)
+        # A mismatched XML/site numbering cannot be extrapolated to unlisted releases.
+        if profile.source_xml_version != profile.source_version:
+            return None
+        return profile.assess(local.version_text)
 
     def update_compatibility_cell(self, mod):
         row = next((row for row, entry in self.row_mods.items() if entry.id == mod.id), None)
@@ -260,6 +271,16 @@ class KingModsTab(QWidget):
                 item = QTableWidgetItem(value)
                 item.setToolTip(local_error or self.errors.get(mod.id, "") or value)
                 self.table.setItem(row, column, item)
+            installed_assessment = self.installed_assessment(mod, local)
+            if installed_assessment:
+                self.table.item(row, 1).setToolTip(
+                    "Zainstalowany oryginał: "
+                    + installed_assessment.label
+                    + "\nOcena według numeru wersji. "
+                    + installed_assessment.notice
+                )
+                if installed_assessment.state is CompatibilityState.INCOMPATIBLE:
+                    self.table.item(row, 1).setForeground(QColor("#c75b00"))
             if profile and page and page.releases[0].version:
                 latest_assessment = self.assessment(mod, page.releases[0].version)
                 if latest_assessment:
@@ -369,10 +390,17 @@ class KingModsTab(QWidget):
                     self.details.text() + f"\nEdit {profile.edit_version}: "
                     f"baza źródłowa {profile.source_version}.\n" + description
                 )
-                if "compatibility:" + mod.id in self.errors:
+                local, _error = self.local(mod)
+                installed_assessment = self.installed_assessment(mod, local)
+                if installed_assessment:
                     self.details.setText(
                         self.details.text()
-                        + "\nNie odświeżono oceny z repozytorium; "
+                        + "\nZainstalowany oryginał: "
+                        + installed_assessment.label
+                    )
+                if "compatibility:" + mod.id in self.errors:
+                    self.details.setText(
+                        self.details.text() + "\nNie odświeżono oceny z repozytorium; "
                         "pokazano ostatnie lub wbudowane dane."
                     )
         else:
