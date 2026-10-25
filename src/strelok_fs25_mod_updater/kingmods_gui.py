@@ -5,7 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .compatibility import EDIT_REPOSITORIES, CompatibilityState, EditCompatibility
 from .fs25 import _is_strielokpl_author, inspect_mod_archive
 from .kingmods import (
     KingMod,
@@ -71,7 +72,7 @@ class KingModsTab(QWidget):
         filters.addWidget(self.watch)
         filters.addStretch()
         layout.addLayout(filters)
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(
             [
                 "Mod",
@@ -80,8 +81,10 @@ class KingModsTab(QWidget):
                 "Wersja do pobrania",
                 "Edit StrelokPL",
                 "Stan",
+                "Zgodność wybranej wersji z editem",
             ]
         )
+        self.table.horizontalHeader().moveSection(6, 4)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -147,6 +150,49 @@ class KingModsTab(QWidget):
             None,
         )
 
+    def compatibility_profile(self, mod):
+        return (
+            self.host.compatibility_profiles.get(mod.id) if not isinstance(mod, GitHubMod) else None
+        )
+
+    def assessment(self, mod, version=None):
+        profile = self.compatibility_profile(mod)
+        version = version if version is not None else self.selections.get(mod.id)
+        if not profile or not version:
+            return None
+        return profile.assess(version)
+
+    def update_compatibility_cell(self, mod):
+        row = next((row for row, entry in self.row_mods.items() if entry.id == mod.id), None)
+        if row is None:
+            return
+        profile = self.compatibility_profile(mod)
+        assessment = self.assessment(mod)
+        label = assessment.label if assessment else ("Brak oceny" if profile else "—")
+        item = QTableWidgetItem(label)
+        item.setToolTip(
+            (
+                assessment.notice
+                if assessment
+                else "Nie porównano tej wersji z bazą editu. Zalecana jest wersja źródłowa."
+            )
+            + (
+                f"\nEdit: {profile.edit_version}; baza: {profile.source_version}."
+                if profile
+                else ""
+            )
+        )
+        if assessment:
+            color = (
+                "#c75b00"
+                if assessment.state is CompatibilityState.INCOMPATIBLE
+                else "#2e7d32"
+                if assessment.state is CompatibilityState.SOURCE
+                else "#4b80bb"
+            )
+            item.setForeground(QColor(color))
+        self.table.setItem(row, 6, item)
+
     def local(self, mod):
         directory = self.host._mods_directory()
         if directory is None or not mod.archive:
@@ -179,6 +225,7 @@ class KingModsTab(QWidget):
                 continue
             page = self.pages.get(mod.id)
             edit = self.linked_edit(mod)
+            profile = self.compatibility_profile(mod)
             is_edit = bool(local and _is_strielokpl_author(local.author))
             state = "Niezainstalowany" if not installed else "Zainstalowany"
             if is_edit and not isinstance(mod, GitHubMod):
@@ -206,20 +253,32 @@ class KingModsTab(QWidget):
                 local.version_text if local else "—",
                 (page.releases[0].version or "Wersja z ZIP-a") if page else "—",
                 "",
-                "Tak" if edit else "—",
+                "Tak" if edit or profile else "—",
                 state,
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setToolTip(local_error or self.errors.get(mod.id, "") or value)
                 self.table.setItem(row, column, item)
+            if profile and page and page.releases[0].version:
+                latest_assessment = self.assessment(mod, page.releases[0].version)
+                if latest_assessment:
+                    self.table.item(row, 2).setToolTip(
+                        latest_assessment.label + "\n" + latest_assessment.notice
+                    )
             combo = QComboBox()
             if page:
                 for release in page.releases:
-                    combo.addItem(
-                        release.version or "Plik ModsFire — wersja z ZIP-a", release.version
-                    )
-                prior = self.selections.get(mod.id, "")
+                    assessment = self.assessment(mod, release.version) if release.version else None
+                    label = release.version or "Plik ModsFire — wersja z ZIP-a"
+                    if profile:
+                        label += " — " + (assessment.label if assessment else "Brak oceny")
+                    combo.addItem(label, release.version)
+                    if assessment:
+                        combo.setItemData(
+                            combo.count() - 1, assessment.notice, Qt.ItemDataRole.ToolTipRole
+                        )
+                prior = self.selections.get(mod.id, profile.source_version if profile else "")
                 index = combo.findData(prior)
                 if prior and index < 0:
                     combo.addItem(f"{prior} — niedostępna", prior)
@@ -237,9 +296,13 @@ class KingModsTab(QWidget):
                 lambda _index, m=mod, c=combo: self.select_version(m, c)
             )
             self.table.setCellWidget(row, 3, combo)
+            self.update_compatibility_cell(mod)
             if mod.id == selected_id:
                 self.table.selectRow(row)
         self.table.resizeColumnsToContents()
+        self.table.setColumnWidth(0, min(190, self.table.columnWidth(0)))
+        self.table.setColumnWidth(3, 255)
+        self.table.setColumnWidth(6, 195)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.show_details()
 
@@ -251,6 +314,7 @@ class KingModsTab(QWidget):
             QTimer.singleShot(0, lambda: self.host._restore_original(mod.id))
             return
         self.selections[mod.id] = combo.currentData()
+        self.update_compatibility_cell(mod)
         self.show_details()
 
     def selected(self):
@@ -277,7 +341,14 @@ class KingModsTab(QWidget):
             if isinstance(mod, GitHubMod)
             else "Otwórz wybraną wersję na ModsFire"
         )
-        self.edit_button.setEnabled(bool(mod and self.linked_edit(mod)))
+        self.edit_button.setEnabled(
+            bool(mod and (self.linked_edit(mod) or self.compatibility_profile(mod)))
+        )
+        self.edit_button.setText(
+            "Strona editu"
+            if mod and self.compatibility_profile(mod) and not self.linked_edit(mod)
+            else "Przejdź do mojego editu"
+        )
         if mod:
             self.details.setText(
                 f"{mod.name or mod.url}\n{mod.url}\n"
@@ -286,6 +357,24 @@ class KingModsTab(QWidget):
                 + "\nWskaż ZIP pobrany z wybranej wersji. O kopię poprzedniego moda zapytamy "
                 "przed podmianą. Po instalacji pobrany plik zostanie przeniesiony do folderu modów."
             )
+            profile = self.compatibility_profile(mod)
+            if profile:
+                assessment = self.assessment(mod)
+                description = (
+                    assessment.label + ": " + assessment.notice
+                    if assessment
+                    else "Brak oceny tej wersji. Zalecana jest wersja źródłowa."
+                )
+                self.details.setText(
+                    self.details.text() + f"\nEdit {profile.edit_version}: "
+                    f"baza źródłowa {profile.source_version}.\n" + description
+                )
+                if "compatibility:" + mod.id in self.errors:
+                    self.details.setText(
+                        self.details.text()
+                        + "\nNie odświeżono oceny z repozytorium; "
+                        "pokazano ostatnie lub wbudowane dane."
+                    )
         else:
             self.details.setText("Wybierz mod z tej paczki.")
 
@@ -313,7 +402,7 @@ class KingModsTab(QWidget):
                 ]
             except (ValueError, OSError) as exc:
                 errors["feed"] = str(exc)
-            pages, updated = {}, []
+            pages, updated, profiles = {}, [], {}
             for index, mod in enumerate(entries, 1):
                 signals.status.emit(f"{name} {index}/{len(entries)}: {mod.name or mod.url}")
                 try:
@@ -331,13 +420,25 @@ class KingModsTab(QWidget):
                 except Exception as exc:
                     errors[mod.id] = str(exc)
                     logging.getLogger(__name__).warning("PACK %s: %s", mod.url, exc)
+                repository = EDIT_REPOSITORIES.get(mod.id)
+                if repository:
+                    try:
+                        profiles[mod.id] = EditCompatibility.from_manifest(
+                            self.host.github.edit_manifest(repository), repository
+                        )
+                    except Exception as exc:
+                        errors["compatibility:" + mod.id] = str(exc)
+                        logging.getLogger(__name__).warning(
+                            "EDIT COMPATIBILITY %s: %s", repository, exc
+                        )
                 updated.append(mod)
-            return name, updated, pages, errors
+            return name, updated, pages, errors, profiles
 
         def success(result):
             if self.removed:
                 return
-            self.pack.name, self.mods, pages, self.errors = result
+            self.pack.name, self.mods, pages, self.errors, profiles = result
+            self.host.compatibility_profiles.update(profiles)
             self.pack.mods = self.mods
             ids = {m.id for m in self.mods}
             self.pages = {key: value for key, value in self.pages.items() if key in ids}
@@ -361,7 +462,10 @@ class KingModsTab(QWidget):
     def open_url(self, url):
         # Validate immediately before handing a URL to the OS/browser.
         mod = self.selected()
-        if isinstance(mod, GitHubMod) and url == mod.url:
+        profile = self.compatibility_profile(mod) if mod else None
+        if profile and url == "https://github.com/" + EDIT_REPOSITORIES.get(mod.id, ""):
+            pass
+        elif isinstance(mod, GitHubMod) and url == mod.url:
             pass  # This object can only originate from the exact trusted official list.
         else:
             try:
@@ -395,6 +499,8 @@ class KingModsTab(QWidget):
                         self.host.tabs.setCurrentWidget(tab)
                         tab.table.selectRow(row)
                         return
+        elif mod and self.compatibility_profile(mod):
+            self.open_url("https://github.com/" + EDIT_REPOSITORIES[mod.id])
 
     def install_github(self, mod, release):
         directory = self.host._mods_directory()

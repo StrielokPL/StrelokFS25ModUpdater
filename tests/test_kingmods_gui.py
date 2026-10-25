@@ -41,6 +41,7 @@ class KingModsGuiTests(unittest.TestCase):
         self.tab.pages[self.mod.id] = parse_page(HTML)
         self.tab.populate()
         self.tab.table.selectRow(0)
+        self.tab.table.cellWidget(0, 3).setCurrentIndex(0)
 
     def test_tabs_filters_edit_navigation_and_versions(self):
         self.assertEqual(self.window.tabs.tabText(0), 'Miziuu')
@@ -52,18 +53,41 @@ class KingModsGuiTests(unittest.TestCase):
         self.tab.filter.setCurrentIndex(1)
         self.assertEqual(self.tab.table.rowCount(), 1)
         self.assertIn('edit StrelokPL', self.tab.table.item(0, 5).text())
-        self.assertEqual(self.tab.table.item(0, 4).text(), '—')
+        self.assertEqual(self.tab.table.item(0, 4).text(), 'Tak')
         self.tab.table.selectRow(0)
         combo = self.tab.table.cellWidget(0, 3)
         combo.setCurrentIndex(1)
         with patch.object(self.tab, 'open_url') as open_url:
             self.tab.open_download()
             open_url.assert_called_once_with('https://modsfire.com/old123')
-        self.tab.open_edit()
-        self.assertFalse(self.tab.edit_button.isEnabled())
+        with patch.object(self.tab, 'open_url') as open_edit_url:
+            self.tab.open_edit()
+            open_edit_url.assert_called_once_with('https://github.com/StrielokPL/Edit330Miziuu')
+        self.assertTrue(self.tab.edit_button.isEnabled())
         self.tab.filter.setCurrentIndex(2)
         self.assertEqual(self.tab.table.rowCount(), 1)
         self.assertNotEqual(self.tab.row_mods[0].id, self.mod.id)
+
+    def test_compatibility_labels_and_recommended_source_selection(self):
+        from strelok_fs25_mod_updater.compatibility import EditCompatibility
+        from strelok_fs25_mod_updater.kingmods import KingPage, KingRelease
+        from tests.test_compatibility import MANIFEST, REPO
+        self.window.compatibility_profiles[self.mod.id] = EditCompatibility.from_manifest(MANIFEST, REPO)
+        self.tab.pages[self.mod.id] = KingPage('Test', [
+            KingRelease(v, 'https://modsfire.com/test')
+            for v in ['1.10.0.0', '1.9.1.0', '1.9.0.0', '1.1.2.1', '1.1.2.0']])
+        self.tab.selections.clear()
+        self.tab.populate()
+        self.tab.table.selectRow(0)
+        combo = self.tab.table.cellWidget(0, 3)
+        self.assertEqual(combo.currentData(), '1.1.2.0')
+        self.assertIn('Źródłowa', self.tab.table.item(0, 6).text())
+        for version, text in [('1.1.2.1', 'sprawdzona'), ('1.9.0.0', 'oszacowana'),
+                              ('1.9.1.0', 'Niekompatybilna'), ('1.10.0.0', 'Niekompatybilna')]:
+            combo.setCurrentIndex(combo.findData(version))
+            self.assertIn(text, self.tab.table.item(0, 6).text())
+        combo.setCurrentIndex(combo.findData('1.9.0.0'))
+        self.assertIn('Nowe elementy oryginału', self.tab.details.text())
 
     def test_backup_choice_and_cancel(self):
         make_mod_zip(self.root / self.mod.archive, '1.0.0.0', title=self.mod.name)

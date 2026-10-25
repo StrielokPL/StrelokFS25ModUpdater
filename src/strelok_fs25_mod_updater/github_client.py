@@ -223,6 +223,28 @@ class GitHubClient:
             )
         return max(candidates, key=lambda item: item.catalog_version, default=None)
 
+    def edit_manifest(self, repository: str) -> dict[str, Any]:
+        from .compatibility import EDIT_REPOSITORIES
+
+        if repository not in EDIT_REPOSITORIES.values():
+            raise GitHubError("Niezaufane źródło metadanych editu")
+        url = f"https://raw.githubusercontent.com/{repository}/HEAD/updater.json"
+        cached = self._cache.get(url)
+        if cached and time.monotonic() - cached[0] <= self.cache_seconds:
+            return cached[1]
+        try:
+            with self._request(url, accept="application/json") as response:
+                raw = response.read(512 * 1024 + 1)
+            if len(raw) > 512 * 1024:
+                raise GitHubError("Metadane editu są zbyt duże")
+            data = json.loads(raw.decode("utf-8-sig"))
+            if not isinstance(data, dict):
+                raise GitHubError("Nieprawidłowe metadane editu")
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise GitHubError("Nieprawidłowy JSON editu") from exc
+        self._cache[url] = (time.monotonic(), data)
+        return data
+
     def download(
         self,
         url: str,

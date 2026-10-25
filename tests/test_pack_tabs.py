@@ -37,6 +37,13 @@ class PackTabTests(unittest.TestCase):
         with patch.object(MainWindow, "_initialise_path"):
             self.window = MainWindow()
         self.addCleanup(self.window.close)
+        from importlib.resources import files
+        import json
+        manifests = json.loads(files('strelok_fs25_mod_updater').joinpath(
+            'resources/edit_compatibility.json').read_text(encoding='utf-8'))
+        metadata = patch.object(self.window.github, 'edit_manifest', side_effect=lambda repo: manifests[repo])
+        metadata.start()
+        self.addCleanup(metadata.stop)
 
     def synchronous(self, work, callback, **_kwargs):
         callback(work(Mock()))

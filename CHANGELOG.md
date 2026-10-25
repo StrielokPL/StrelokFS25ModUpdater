@@ -1,5 +1,15 @@
 # Historia zmian
 
+## 0.0.1a14 — oceny zgodności oryginałów z editami
+
+- źródłowa baza pozostaje zalecana i jest domyślnym wyborem wersji;
+- jawne rozróżnienie zgodności sprawdzonej i oszacowanej;
+- granica niezgodności obejmuje wskazaną wersję i wszystkie nowsze;
+- nowe wydania bez porównania pozostają bez oceny, zamiast otrzymywać zgodność z numeru;
+- metadane dwóch zaufanych editów są odczytywane z GitHuba, z wbudowanym stanem początkowym;
+- C-330 0.0.5.1: niekompatybilne 1.9.1.0 i nowsze; nie dodano niesprawdzonych zgodnych wersji;
+- wyjaśnienie ograniczeń nowych elementów oryginału po zastosowaniu editu.
+
 ## 0.0.1a13 — osobna zakładka dla każdej paczki
 
 - domyślne listy Miziuu i StrielokPL z nowych repozytoriów;

@@ -41,6 +41,7 @@ from .fs25 import discover_mod_directories, scan_known_mods
 from .github_client import GitHubClient
 from .installer import ModInstaller
 from .kingmods_gui import KingModsTab
+from .compatibility import bundled_profiles
 from .kingmods import KingModsClient
 from .packs import ModPack, PackStore, GitHubMod, pack_source, parse_pack
 from .models import (
@@ -180,6 +181,7 @@ class MainWindow(QMainWindow):
         self.checks: dict[str, UpdateCheck] = {}
         self.row_ids: dict[int, str] = {}
 
+        self.compatibility_profiles = bundled_profiles()
         self.pack_store = PackStore()
         self.packs = self.pack_store.load()
         self.pack_tabs = []
