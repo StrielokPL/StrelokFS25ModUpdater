@@ -1,0 +1,23 @@
+{
+  "name": "Przykładowa paczka",
+  "mods": [
+    {
+      "url": "https://www.kingmods.net/pl/fs25/mods/63913/ursus-c-330330m",
+      "name": "Ursus C-330/330M",
+      "archiveName": "FS25_UrsusC330_330M_4x2.zip",
+      "modDescTitles": [
+        "Ursus C-330/330M"
+      ],
+      "editId": "strelokpl.ursus330fs25"
+    },
+    {
+      "url": "https://www.kingmods.net/pl/fs25/mods/61633/ursus-c355-c360-pack",
+      "name": "Ursus C355-C360 Pack",
+      "archiveName": "FS25_UrsusC355xC360Pack.zip",
+      "modDescTitles": [
+        "Ursus C355-C360 Pack"
+      ],
+      "editId": "strelokpl.ursus355360"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "StrielokPL/Edit330Miziuu": {
+    "schemaVersion": 1,
+    "id": "edit330miziuu",
+    "version": "0.0.5.1",
+    "baseMod": {
+      "kingmodsUrl": "https://www.kingmods.net/en/fs25/mods/63913/ursus-c-330330m",
+      "downloadPage": "https://modsfire.com/4aJ7Ur5T4hNVzE9",
+      "version": "1.1.2.0",
+      "modDescVersion": "1.1.2.0",
+      "compatibleVersions": [],
+      "sha256": "e7ae69046d4cbf6754d78b700d8fc549f49e111b0d0b3fcd095565b003c0ed21",
+      "archiveName": "FS25_UrsusC330_330M_4x2.zip",
+      "contentSha256": "bd0c142200d58b5aa0c1d3079e18cb060cef3c9a48b2dbdf32186e3a6d401d3f",
+      "fileCount": 100,
+      "incompatibleVersions": [],
+      "incompatibleFrom": "1.9.1.0",
+      "incompatibilityReason": "Zmienione identyfikatory geometrii: stara scena editu nie pasuje do c330m.i3d.shapes z wersji 1.9.1.0; wykryto też niezgodność materiałów."
+    }
+  },
+  "StrielokPL/Edit355360Miziuu": {
+    "schemaVersion": 1,
+    "id": "edit355360miziuu",
+    "version": "0.0.2.30b",
+    "baseMod": {
+      "kingmodsUrl": "https://www.kingmods.net/en/fs25/mods/61633/ursus-c355-c360-pack",
+      "downloadPage": "https://modsfire.com/Pu0Z8qje6H27Ab2",
+      "version": "2.0.4.0",
+      "modDescVersion": "2.0.3.0",
+      "compatibleVersions": [],
+      "sha256": "de0b33227d49295843898cc0164ba3c75c6cdc885bdab8606f0c027f16250fd8",
+      "archiveName": "FS25_UrsusC355xC360Pack.zip",
+      "contentSha256": "ac0d25b745d96c01bb1addf199d5f02b5d94f4b37bf1b8d3bc403c928161e49c",
+      "fileCount": 210,
+      "incompatibleVersions": [],
+      "incompatibleFrom": null,
+      "incompatibilityReason": ""
+    }
+  }
+}

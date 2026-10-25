@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextBrowser,
@@ -39,6 +40,10 @@ from .diagnostics import create_diagnostic_bundle
 from .fs25 import discover_mod_directories, scan_known_mods
 from .github_client import GitHubClient
 from .installer import ModInstaller
+from .kingmods_gui import KingModsTab
+from .compatibility import bundled_profiles
+from .kingmods import KingModsClient
+from .packs import ModPack, PackStore, GitHubMod, pack_source, parse_pack
 from .models import (
     CatalogMod,
     LocalModKind,
@@ -176,6 +181,10 @@ class MainWindow(QMainWindow):
         self.checks: dict[str, UpdateCheck] = {}
         self.row_ids: dict[int, str] = {}
 
+        self.compatibility_profiles = bundled_profiles()
+        self.pack_store = PackStore()
+        self.packs = self.pack_store.load()
+        self.pack_tabs = []
         self._build_ui()
         self._reload_mod_list()
         self._initialise_path()
@@ -184,6 +193,8 @@ class MainWindow(QMainWindow):
         """Run startup actions after the main window has become visible."""
         self._show_first_run_warning()
         if check_updates:
+            for tab in self.pack_tabs:
+                tab.start()
             QTimer.singleShot(
                 250,
                 lambda: self._begin_application_update_check(startup=True),
@@ -215,6 +226,9 @@ class MainWindow(QMainWindow):
         path_layout.addWidget(self.browse_button)
         root.addLayout(path_layout)
 
+        self.tabs = QTabWidget()
+        self.github_tab = QWidget()
+        github_layout = QVBoxLayout(self.github_tab)
         toolbar = QHBoxLayout()
         self.check_button = QPushButton("Sprawdź aktualizacje")
         self.check_button.clicked.connect(self._begin_release_check)
@@ -229,19 +243,18 @@ class MainWindow(QMainWindow):
             lambda: self._begin_application_update_check(startup=False)
         )
         self.options_menu.addSeparator()
-        self.add_external_action = self.options_menu.addAction("Dodaj zewnętrzne repo…")
-        self.add_external_action.triggered.connect(self._add_external)
-        self.remove_external_action = self.options_menu.addAction("Usuń zewnętrzne repo…")
-        self.remove_external_action.triggered.connect(self._remove_external)
-        self.options_menu.addSeparator()
-        self.rollback_action = self.options_menu.addAction("Cofnij aktualizację moda…")
-        self.rollback_action.triggered.connect(self._rollback)
+        self.add_pack_action = self.options_menu.addAction("Dodaj paczkę z GitHuba…")
+        self.add_pack_action.triggered.connect(self._add_pack_url)
+        self.import_pack_action = self.options_menu.addAction("Wczytaj plik jako zakładkę…")
+        self.import_pack_action.triggered.connect(self._add_pack_file)
+        self.remove_pack_action = self.options_menu.addAction("Usuń bieżącą zakładkę…")
+        self.remove_pack_action.triggered.connect(self._remove_pack)
         self.options_button.setMenu(self.options_menu)
         path_layout.addWidget(self.options_button)
         toolbar.addWidget(self.check_button)
         toolbar.addWidget(self.install_button)
         toolbar.addStretch(1)
-        root.addLayout(toolbar)
+        github_layout.addLayout(toolbar)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.table = QTableWidget(0, 8)
@@ -269,7 +282,11 @@ class MainWindow(QMainWindow):
         self.details.setPlaceholderText("Wybierz mod, aby zobaczyć opis i informacje o wydaniu.")
         splitter.addWidget(self.details)
         splitter.setSizes([480, 180])
-        root.addWidget(splitter, 1)
+        github_layout.addWidget(splitter, 1)
+        self.source_tabs = {}
+        for pack in self.packs:
+            self._register_pack(pack)
+        root.addWidget(self.tabs, 1)
 
         status_layout = QHBoxLayout()
         self.status_label = QLabel("Gotowy")
@@ -280,6 +297,86 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(self.status_label, 1)
         status_layout.addWidget(self.progress)
         root.addLayout(status_layout)
+
+    def register_source_tab(self, source_id: str, title: str, widget: QWidget) -> None:
+        if source_id in self.source_tabs:
+            raise ValueError(f"Zakładka {source_id} już istnieje")
+        self.source_tabs[source_id] = widget
+        self.tabs.addTab(widget, title)
+
+    def save_packs(self):
+        self.pack_store.save(self.packs)
+
+    def _register_pack(self, pack):
+        tab = KingModsTab(self, pack)
+        self.pack_tabs.append(tab)
+        self.register_source_tab("pack:" + pack.id, pack.name, tab)
+        return tab
+
+    def _add_pack_url(self):
+        value, ok = QInputDialog.getText(
+            self, "Dodaj paczkę", "Adres repozytorium GitHub z mods.txt lub pliku TXT/JSON:")
+        if not ok or not value.strip():
+            return
+        try:
+            source = pack_source(value)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Nieprawidłowe źródło", str(exc))
+            return
+        client = KingModsClient()
+
+        def work(_signals):
+            name, mods = parse_pack(client.read(source), source=source)
+            return ModPack(source, name, mods)
+        self._start_task(work, self._pack_loaded, name="pack-import")
+
+    def _add_pack_file(self):
+        source, _ = QFileDialog.getOpenFileName(
+            self, "Wczytaj paczkę jako zakładkę", "", "Lista modów (*.txt *.json)")
+        if not source:
+            return
+        pack = ModPack(str(Path(source).resolve()), "", local=True)
+
+        def work(_signals):
+            name, mods = parse_pack(pack.load_text(None))
+            pack.name, pack.mods = name, mods
+            return pack
+        self._start_task(work, self._pack_loaded, name="pack-file-import")
+
+    def _pack_loaded(self, pack):
+        existing = next((tab for tab in self.pack_tabs if tab.pack.id == pack.id), None)
+        if existing:
+            self.tabs.setCurrentWidget(existing)
+            self._set_status("Ta paczka jest już wczytana; użyj Sprawdź wersje.")
+            return
+        self.packs.append(pack)
+        tab = self._register_pack(pack)
+        self.save_packs()
+        self._reload_mod_list()
+        self._scan_local()
+        self.tabs.setCurrentWidget(tab)
+        tab.start()
+
+    def _remove_pack(self):
+        tab = self.tabs.currentWidget()
+        if tab not in self.pack_tabs:
+            return
+        if QMessageBox.question(
+            self, "Usuń zakładkę", f"Usunąć zakładkę {tab.pack.name}?\n"
+            "Plik listy, repozytorium i zainstalowane mody pozostaną bez zmian.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        tab.removed = True
+        tab.timer.stop()
+        self.tabs.removeTab(self.tabs.indexOf(tab))
+        self.pack_tabs.remove(tab)
+        self.packs.remove(tab.pack)
+        self.source_tabs.pop("pack:" + tab.pack.id, None)
+        self.save_packs()
+        self._reload_mod_list()
+        self._scan_local()
+        tab.deleteLater()
 
     def _show_first_run_warning(self) -> None:
         if self.settings.first_run_warning_seen:
@@ -309,7 +406,8 @@ class MainWindow(QMainWindow):
     def _reload_mod_list(self) -> None:
         self.catalog = self.catalog_manager.current()
         self.external_mods = self.external_store.load()
-        self.mods = self.catalog.mods + self.external_mods
+        self.mods = tuple({mod.id: mod.catalog for pack in self.packs
+                           for mod in pack.mods if isinstance(mod, GitHubMod)}.values())
 
     def _mods_directory(self) -> Path | None:
         text = self.settings.mods_directory.strip()
@@ -353,6 +451,8 @@ class MainWindow(QMainWindow):
             if directory else {}
         )
         self._populate_without_remote()
+        for tab in self.pack_tabs:
+            tab.populate()
 
     def _populate_without_remote(self) -> None:
         checks: list[UpdateCheck] = []
@@ -770,7 +870,7 @@ class MainWindow(QMainWindow):
                 "Zastąpienie oryginalnego moda",
                 "Wybrane pliki mają zgodny tytuł, ale nie są wydaniem StrelokPL:\n\n"
                 f"{changes}\n\n"
-                "Updater wykona kopię obecnego archiwum, a następnie zastąpi je "
+                "Updater zastąpi obecne archiwum "
                 "wydaniem StrelokPL. Zmiana może wpłynąć na sprzęt w savegame. "
                 "Czy kontynuować?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -799,7 +899,7 @@ class MainWindow(QMainWindow):
                 "Instalacja starszej wersji",
                 "Wybrano zmianę na starszą wersję:\n\n"
                 f"{changes}\n\n"
-                "Updater wykona kopię obecnego archiwum, ale starszy mod może nie być "
+                "Starszy mod może nie być "
                 "zgodny z aktualnym zapisem gry. Czy kontynuować?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -828,6 +928,20 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return
 
+        backup_existing = True
+        if any(check.local for check in selected) and not migrations:
+            answer = QMessageBox.question(
+                self, "Kopie poprzednich modów",
+                "Czy zachować kopie poprzednich modów przed podmianą?\n\n"
+                "Tak — wykonaj kopie. Nie — podmień bez kopii. Anuluj — przerwij.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Cancel:
+                return
+            backup_existing = answer == QMessageBox.StandardButton.Yes
+
         def work(signals: TaskSignals):
             events = []
             for index, check in enumerate(selected, start=1):
@@ -837,6 +951,7 @@ class MainWindow(QMainWindow):
                     check.selected_release,  # type: ignore[arg-type]
                     mods_directory,
                     replaced_mods=check.replaced_local_mods,
+                    backup_existing=backup_existing,
                     backup_savegames=bool(
                         check.replaced_local_mods
                         and check.mod.migration
@@ -919,7 +1034,7 @@ class MainWindow(QMainWindow):
             f"Przywrócić oryginalny mod {mod.name}?\n\n"
             f"Wersja: {original.version_text}\nAutor: {original.author}\n\n"
             "Obecny mod zostanie zachowany w kopii bezpieczeństwa. "
-            "Przywrócenie można cofnąć w menu Opcje → Cofnij aktualizację moda.",
+            "Możesz ponownie wybrać wydanie StrelokPL z listy wersji.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -934,56 +1049,6 @@ class MainWindow(QMainWindow):
             self._set_status(f"Przywrócono oryginalny mod: {mod.name}")
 
         self._start_task(work, success, name="restore-original")
-
-    def _rollback(self) -> None:
-        events = [event for event in reversed(self.history.load()) if event.get("backupDirectory")]
-        if not events:
-            QMessageBox.information(
-                self,
-                "Brak kopii",
-                "Nie ma aktualizacji możliwej do cofnięcia.",
-            )
-            return
-        labels = [
-            f"{event.get('timestamp', '')[:19]} — "
-            f"{event.get('archiveName', '')} — {event.get('version', '')}"
-            for event in events
-        ]
-        selected, ok = QInputDialog.getItem(
-            self, "Cofnij aktualizację moda", "Wybierz operację:", labels, 0, False
-        )
-        if not ok:
-            return
-        event = events[labels.index(selected)]
-        restore_saves = False
-        if event.get("savegamesBackedUp"):
-            answer = QMessageBox.question(
-                self,
-                "Przywrócić zapisy gry?",
-                "Ta migracja zawiera również kopie savegame'ów. Czy je przywrócić?\n\n"
-                "Obecne wersje tych zapisów zostaną zastąpione.",
-                QMessageBox.StandardButton.Yes
-                | QMessageBox.StandardButton.No
-                | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Cancel,
-            )
-            if answer == QMessageBox.StandardButton.Cancel:
-                return
-            restore_saves = answer == QMessageBox.StandardButton.Yes
-        mods_directory = self._mods_directory()
-        if mods_directory is None:
-            return
-
-        def work(_signals: TaskSignals):
-            self.installer.rollback(event, mods_directory, restore_savegames=restore_saves)
-            return True
-
-        def success(_result: object) -> None:
-            QMessageBox.information(self, "Przywrócono", "Poprzednie pliki zostały przywrócone.")
-            self._scan_local()
-            self._begin_release_check()
-
-        self._start_task(work, success, name="rollback")
 
     def _open_log_directory(self) -> None:
         directory = data_dir()
@@ -1082,13 +1147,15 @@ class MainWindow(QMainWindow):
             self.detect_button,
             self.browse_button,
             self.options_button,
-            self.add_external_action,
-            self.remove_external_action,
-            self.rollback_action,
+            self.add_pack_action,
+            self.import_pack_action,
+            self.remove_pack_action,
             self.app_update_action,
         ):
             button.setEnabled(not busy)
         self.table.setEnabled(not busy)
+        for tab in self.pack_tabs:
+            tab.set_busy(busy)
 
     def _set_status(self, text: str) -> None:
         logging.getLogger(__name__).info("STATUS %s", text)

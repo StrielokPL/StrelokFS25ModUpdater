@@ -42,8 +42,8 @@ class GuiOptionsTests(unittest.TestCase):
                 window._populate_table([check])
                 self.assertGreaterEqual(window.table.cellWidget(0, 6).findData('action:restore-original'), 0)
                 labels = [a.text() for a in window.options_menu.actions() if not a.isSeparator()]
-                self.assertEqual(labels, ['Aktualizuj aplikację', 'Dodaj zewnętrzne repo…',
-                                         'Usuń zewnętrzne repo…', 'Cofnij aktualizację moda…'])
+                self.assertEqual(labels, ['Aktualizuj aplikację', 'Dodaj paczkę z GitHuba…',
+                                         'Wczytaj plik jako zakładkę…', 'Usuń bieżącą zakładkę…'])
                 from PySide6.QtWidgets import QMessageBox
                 window.settings.mods_directory = str(fixture.mods)
                 combo = window.table.cellWidget(0, 6)
@@ -60,7 +60,7 @@ class GuiOptionsTests(unittest.TestCase):
                 window.busy_tasks = 1
                 window._update_busy_state()
                 self.assertFalse(window.options_button.isEnabled())
-                self.assertFalse(window.rollback_action.isEnabled())
+                self.assertFalse(window.pack_tabs[0].isEnabled())
                 window.busy_tasks = 0
                 window._update_busy_state()
                 self.assertTrue(window.options_button.isEnabled())

@@ -1,5 +1,48 @@
 # Historia zmian
 
+## 0.0.1a15
+
+- Oficjalna lista StrielokPL obsługuje repozytoria Edit330Miziuu i Edit355360Miziuu
+  jako osobne pozycje editów. Obce listy nadal przyjmują tylko KingMods i ModsFire.
+- Instalacja editu z oryginalnego ZIP-a: pobranie konkretnego commita repozytorium,
+  kontrola manifestu i sum plików, podmiana i usuwanie wskazanych plików,
+  zachowanie pozostałych plików bazy, weryfikacja wynikowej paczki i atomowa instalacja.
+- Zalecana baza dostępna pod przyciskiem pobrania. Niezgodna, nieoceniona lub inna
+  niż źródłowa paczka wymaga potwierdzenia. Wcześniejszy edit nie jest bazą oryginalną.
+- Wybór kopii poprzedniego moda oraz przywracanie oryginału z zachowanej kopii.
+- Przycisk „Odśwież listę i wersje” odczytuje listę i wersje bez pamięci podręcznej.
+
+## 0.0.1a14 — oceny zgodności oryginałów z editami
+
+- źródłowa baza pozostaje zalecana i jest domyślnym wyborem wersji;
+- jawne rozróżnienie zgodności sprawdzonej i oszacowanej;
+- granica niezgodności obejmuje wskazaną wersję i wszystkie nowsze;
+- nowe wydania bez porównania pozostają bez oceny, zamiast otrzymywać zgodność z numeru;
+- metadane dwóch zaufanych editów są odczytywane z GitHuba, z wbudowanym stanem początkowym;
+- C-330 0.0.5.1: niekompatybilne 1.9.1.0 i nowsze; nie dodano niesprawdzonych zgodnych wersji;
+- wyjaśnienie ograniczeń nowych elementów oryginału po zastosowaniu editu.
+
+## 0.0.1a13 — osobna zakładka dla każdej paczki
+
+- domyślne listy Miziuu i StrielokPL z nowych repozytoriów;
+- prosty `mods.txt`: nazwa zakładki w pierwszym wierszu, następnie linki;
+- import pliku lokalnego lub repozytorium jako niezależnej zakładki;
+- bezpośrednie linki ModsFire, z wersją odczytywaną z ręcznie pobranego ZIP-a;
+- obce paczki akceptują tylko HTTPS KingMods/ModsFire; walidacja domen i przekierowań;
+- dokładnie wskazana oficjalna lista StrielokPL może zawierać publiczne repo Ursusa 1654/1954;
+- usuwanie pozycji i zmiana nazwy w źródle są odzwierciedlane bez scalania paczek;
+- migracja wcześniejszych obserwacji do osobnej zakładki;
+- Linux budowany na Ubuntu 22.04 z dołączonym libxcb-cursor0.
+
+## 0.0.1a12 — KingMods i zakładki
+
+- główna zakładka obserwowanych modów KingMods z filtrem instalacji i powiązaniami editów;
+- wybór wersji i otwieranie właściwego linku ModsFire;
+- ręczny import ZIP-a, walidacja, wybór kopii oraz atomowa podmiana i przeniesienie paczki;
+- import katalogu odnośników TXT/JSON z publicznego GitHuba i sprawdzanie co 15 minut;
+- zakładka Moje mody i edity zachowuje obsługę GitHuba, zwykłe aktualizacje pytają o kopię;
+- rejestr zakładek przygotowany na nowe źródła; usunięcie zbędnej akcji cofania moda.
+
 ## 0.0.1a11 — menu opcji i przywracanie oryginału
 
 - akcje aplikacji, zewnętrznych repozytoriów i cofania aktualizacji moda przeniesiono do menu Opcje przy wyborze folderu;
