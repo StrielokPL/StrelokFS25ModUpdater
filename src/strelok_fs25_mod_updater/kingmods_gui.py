@@ -31,7 +31,7 @@ from .kingmods import (
     kingmods_url,
     modsfire_url,
 )
-from .packs import GitHubMod
+from .packs import EditMod, GitHubMod
 from .versioning import ModVersion
 
 
@@ -46,12 +46,13 @@ class KingModsTab(QWidget):
         self.mods = list(pack.mods)
         self.removed = False
         self.pages = {}
+        self.manifests = {}
         self.errors = {}
         self.selections = {}
         self.row_mods = {}
         layout = QVBoxLayout(self)
         toolbar = QHBoxLayout()
-        self.refresh_button = QPushButton("Sprawdź wersje")
+        self.refresh_button = QPushButton("Odśwież listę i wersje")
         self.refresh_button.clicked.connect(self.refresh)
         toolbar.addWidget(self.refresh_button)
         self.source_label = QLabel(pack.source)
@@ -134,7 +135,7 @@ class KingModsTab(QWidget):
         self.host.save_packs()
 
     def linked_edit(self, mod):
-        if isinstance(mod, GitHubMod):
+        if isinstance(mod, (GitHubMod, EditMod)):
             return None
         return next(
             (
@@ -152,7 +153,11 @@ class KingModsTab(QWidget):
 
     def compatibility_profile(self, mod):
         return (
-            self.host.compatibility_profiles.get(mod.id) if not isinstance(mod, GitHubMod) else None
+            self.host.compatibility_profiles.get(
+                mod.base_id if isinstance(mod, EditMod) else mod.id
+            )
+            if not isinstance(mod, GitHubMod)
+            else None
         )
 
     def assessment(self, mod, version=None):
@@ -160,7 +165,7 @@ class KingModsTab(QWidget):
         version = version if version is not None else self.selections.get(mod.id)
         if not profile or not version:
             return None
-        return profile.assess(version)
+        return profile.assess(profile.source_version if isinstance(mod, EditMod) else version)
 
     def installed_assessment(self, mod, local):
         profile = self.compatibility_profile(mod)
@@ -202,6 +207,8 @@ class KingModsTab(QWidget):
                 else "#4b80bb"
             )
             item.setForeground(QColor(color))
+        if isinstance(mod, EditMod) and profile:
+            item.setText("Baza: " + profile.source_version)
         self.table.setItem(row, 6, item)
 
     def local(self, mod):
@@ -281,7 +288,7 @@ class KingModsTab(QWidget):
                 )
                 if installed_assessment.state is CompatibilityState.INCOMPATIBLE:
                     self.table.item(row, 1).setForeground(QColor("#c75b00"))
-            if profile and page and page.releases[0].version:
+            if profile and not isinstance(mod, EditMod) and page and page.releases[0].version:
                 latest_assessment = self.assessment(mod, page.releases[0].version)
                 if latest_assessment:
                     self.table.item(row, 2).setToolTip(
@@ -292,14 +299,17 @@ class KingModsTab(QWidget):
                 for release in page.releases:
                     assessment = self.assessment(mod, release.version) if release.version else None
                     label = release.version or "Plik ModsFire — wersja z ZIP-a"
-                    if profile:
+                    if profile and not isinstance(mod, EditMod):
                         label += " — " + (assessment.label if assessment else "Brak oceny")
                     combo.addItem(label, release.version)
                     if assessment:
                         combo.setItemData(
                             combo.count() - 1, assessment.notice, Qt.ItemDataRole.ToolTipRole
                         )
-                prior = self.selections.get(mod.id, profile.source_version if profile else "")
+                prior = self.selections.get(
+                    mod.id,
+                    profile.source_version if profile and not isinstance(mod, EditMod) else "",
+                )
                 index = combo.findData(prior)
                 if prior and index < 0:
                     combo.addItem(f"{prior} — niedostępna", prior)
@@ -313,6 +323,11 @@ class KingModsTab(QWidget):
                 and self.host.installer.find_original_backup(mod.catalog)
             ):
                 combo.addItem("Przywróć oryginalny mod…", "__restore__")
+            if isinstance(mod, EditMod) and local and is_edit:
+                from .overlay import find_original_backup
+
+                if find_original_backup(self.host.installer, mod):
+                    combo.addItem("Przywróć oryginalny mod…", "__restore__")
             combo.currentIndexChanged.connect(
                 lambda _index, m=mod, c=combo: self.select_version(m, c)
             )
@@ -328,11 +343,14 @@ class KingModsTab(QWidget):
         self.show_details()
 
     def select_version(self, mod, combo):
-        if combo.currentData() == "__restore__" and isinstance(mod, GitHubMod):
+        if combo.currentData() == "__restore__" and isinstance(mod, (GitHubMod, EditMod)):
             combo.blockSignals(True)
             combo.setCurrentIndex(max(0, combo.findData(self.selections.get(mod.id, ""))))
             combo.blockSignals(False)
-            QTimer.singleShot(0, lambda: self.host._restore_original(mod.id))
+            if isinstance(mod, EditMod):
+                QTimer.singleShot(0, lambda: self.restore_edit_base(mod))
+            else:
+                QTimer.singleShot(0, lambda: self.host._restore_original(mod.id))
             return
         self.selections[mod.id] = combo.currentData()
         self.update_compatibility_cell(mod)
@@ -357,8 +375,15 @@ class KingModsTab(QWidget):
         self.import_button.setEnabled(
             bool(mod and not isinstance(mod, GitHubMod) and self.release(mod) and mod.archive)
         )
+        self.import_button.setText(
+            "Zainstaluj edit na oryginalnym ZIP-ie…"
+            if isinstance(mod, EditMod)
+            else "Wskaż pobrany ZIP i zainstaluj…"
+        )
         self.download_button.setText(
-            "Pobierz / zainstaluj z GitHuba"
+            "Pobierz zalecaną bazę z ModsFire"
+            if isinstance(mod, EditMod)
+            else "Pobierz / zainstaluj z GitHuba"
             if isinstance(mod, GitHubMod)
             else "Otwórz wybraną wersję na ModsFire"
         )
@@ -379,6 +404,14 @@ class KingModsTab(QWidget):
                 "przed podmianą. Po instalacji pobrany plik zostanie przeniesiony do folderu modów."
             )
             profile = self.compatibility_profile(mod)
+            if isinstance(mod, EditMod):
+                self.details.setText(
+                    f"{mod.name}\n{mod.url}\n"
+                    "Edit zawiera tylko zmienione pliki. Wskaż oryginalny ZIP pobrany od autora "
+                    "lub użyj zainstalowanego oryginału. ZIP wskazany spoza folderu modów "
+                    "pozostanie zachowany.\n"
+                    + self.errors.get(mod.id, "")
+                )
             if profile:
                 assessment = self.assessment(mod)
                 description = (
@@ -413,6 +446,9 @@ class KingModsTab(QWidget):
         if self.host.busy_tasks or self.removed:
             return
         mods = list(self.mods)
+        # Manual checks must not reuse the five-minute HTTP cache.
+        self.client.cache.clear()
+        self.host.github._cache.clear()
 
         def work(signals):
             entries, name, errors = mods, self.pack.name, {}
@@ -430,11 +466,30 @@ class KingModsTab(QWidget):
                 ]
             except (ValueError, OSError) as exc:
                 errors["feed"] = str(exc)
-            pages, updated, profiles = {}, [], {}
+            pages, updated, profiles, manifests = {}, [], {}, {}
             for index, mod in enumerate(entries, 1):
                 signals.status.emit(f"{name} {index}/{len(entries)}: {mod.name or mod.url}")
                 try:
-                    if isinstance(mod, GitHubMod):
+                    if isinstance(mod, EditMod):
+                        manifest = self.host.github.edit_manifest(mod.repository)
+                        profile = EditCompatibility.from_manifest(manifest, mod.repository)
+                        if (
+                            manifest.get("packageType") != "file-overlay"
+                            or manifest.get("archiveName") != mod.archive
+                        ):
+                            raise ValueError("Nieprawidłowa paczka editu")
+                        page = KingPage(
+                            mod.name,
+                            [
+                                KingRelease(
+                                    profile.edit_version,
+                                    modsfire_url(manifest["baseMod"]["downloadPage"]),
+                                )
+                            ],
+                        )
+                        profiles[mod.base_id] = profile
+                        manifests[mod.id] = manifest
+                    elif isinstance(mod, GitHubMod):
                         releases = self.host.github.releases_for_mod(mod.catalog)
                         releases.sort(key=lambda r: r.version, reverse=True)
                         if not releases:
@@ -460,12 +515,13 @@ class KingModsTab(QWidget):
                             "EDIT COMPATIBILITY %s: %s", repository, exc
                         )
                 updated.append(mod)
-            return name, updated, pages, errors, profiles
+            return name, updated, pages, errors, profiles, manifests
 
         def success(result):
             if self.removed:
                 return
-            self.pack.name, self.mods, pages, self.errors, profiles = result
+            self.pack.name, self.mods, pages, self.errors, profiles, manifests = result
+            self.manifests = manifests
             self.host.compatibility_profiles.update(profiles)
             self.pack.mods = self.mods
             ids = {m.id for m in self.mods}
@@ -493,7 +549,7 @@ class KingModsTab(QWidget):
         profile = self.compatibility_profile(mod) if mod else None
         if profile and url == "https://github.com/" + EDIT_REPOSITORIES.get(mod.id, ""):
             pass
-        elif isinstance(mod, GitHubMod) and url == mod.url:
+        elif isinstance(mod, (GitHubMod, EditMod)) and url == mod.url:
             pass  # This object can only originate from the exact trusted official list.
         else:
             try:
@@ -602,6 +658,9 @@ class KingModsTab(QWidget):
         mod = self.selected()
         release = self.release(mod) if mod else None
         directory = self.host._mods_directory()
+        if isinstance(mod, EditMod):
+            self.install_edit(mod)
+            return
         if not mod or not release or isinstance(mod, GitHubMod):
             return
         if directory is None or not directory.is_dir():
@@ -668,3 +727,159 @@ class KingModsTab(QWidget):
             QMessageBox.information(self, "Zainstalowano mod", message)
 
         self.host._start_task(work, success, name="kingmods-import")
+
+    def install_edit(self, mod):
+        from .fs25 import sha256_file
+        from .overlay import base_assessment, install_overlay
+
+        manifest = self.manifests.get(mod.id)
+        directory = self.host._mods_directory()
+        if manifest is None:
+            QMessageBox.warning(self, "Edit", "Najpierw odśwież listę i wersje.")
+            return
+        if directory is None or not directory.is_dir():
+            QMessageBox.warning(self, "Folder modów", "Najpierw wskaż istniejący folder modów.")
+            return
+        target = directory / mod.archive
+        source = None
+        if target.exists():
+            try:
+                local = inspect_mod_archive(mod.id, target)
+                if not _is_strielokpl_author(local.author):
+                    answer = QMessageBox.question(
+                        self,
+                        "Oryginalny mod",
+                        "Użyć oryginału znajdującego się w folderze modów?\n"
+                        "Nie — wskaż inny oryginalny ZIP.",
+                        QMessageBox.StandardButton.Yes
+                        | QMessageBox.StandardButton.No
+                        | QMessageBox.StandardButton.Cancel,
+                        QMessageBox.StandardButton.Yes,
+                    )
+                    if answer == QMessageBox.StandardButton.Cancel:
+                        return
+                    if answer == QMessageBox.StandardButton.Yes:
+                        source = target
+            except (OSError, ValueError):
+                pass
+        if source is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Wskaż oryginalny ZIP autora (nie edit)", "", "Archiwum ZIP (*.zip)"
+            )
+            if not path:
+                return
+            source = Path(path)
+        try:
+            local, assessment = base_assessment(mod, manifest, source)
+            base_hash = sha256_file(source)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Nieprawidłowa baza", str(exc))
+            return
+        profile = self.compatibility_profile(mod)
+        mismatch = base_hash != manifest["baseMod"]["sha256"]
+        notice = assessment.notice if assessment else "Brak oceny zgodności tej wersji."
+        warning = (
+            assessment is None or assessment.state is not CompatibilityState.SOURCE or mismatch
+        )
+        if warning:
+            message = (
+                f"Oryginał: {local.version_text}. Zalecana baza: {profile.source_version}.\n"
+                f"{assessment.label if assessment else 'Brak oceny'}\n{notice}"
+            )
+            if mismatch:
+                message += "\nSuma ZIP-a różni się od źródłowej paczki."
+            answer = QMessageBox.warning(
+                self,
+                "Zgodność bazy editu",
+                message + "\n\nCzy mimo to kontynuować?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        backup = False
+        if target.exists():
+            answer = QMessageBox.question(
+                self,
+                "Kopia poprzedniego moda",
+                "Czy zachować kopię obecnego moda przed instalacją editu?\n"
+                "Tak — wykonaj kopię. Nie — zastąp bez kopii. Anuluj — przerwij.",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Cancel:
+                return
+            backup = answer == QMessageBox.StandardButton.Yes
+        elif (
+            QMessageBox.question(
+                self,
+                "Instalacja editu",
+                f"Zainstalować {mod.name} {manifest['version']}?\n"
+                f"Baza pozostanie zachowana: {source}",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+
+        def work(signals):
+            return install_overlay(
+                self.host.installer,
+                mod,
+                manifest,
+                source,
+                directory,
+                backup=backup,
+                allow_mismatch=warning,
+                expected_base_hash=base_hash,
+                status=signals.status.emit,
+                progress=signals.progress.emit,
+            )
+
+        def success(event):
+            self.host._scan_local()
+            for tab in self.host.pack_tabs:
+                tab.populate()
+            message = f"Zainstalowano {mod.name} {manifest['version']}."
+            if event.get("backupDirectory"):
+                message += "\nKopia: " + event["backupDirectory"]
+            if event.get("historyWarning"):
+                message += "\nNie udało się zapisać historii — sprawdź log."
+            QMessageBox.information(self, "Zainstalowano edit", message)
+
+        self.host._start_task(work, success, name="file-overlay-install")
+
+    def restore_edit_base(self, mod):
+        from .overlay import restore_original
+
+        directory = self.host._mods_directory()
+        if directory is None or not directory.is_dir():
+            return
+        answer = QMessageBox.question(
+            self,
+            "Przywracanie oryginału",
+            "Przywrócić oryginalny mod? Czy zachować kopię obecnego editu?\n"
+            "Tak — z kopią. Nie — bez kopii. Anuluj — przerwij.",
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Cancel:
+            return
+
+        def work(_signals):
+            return restore_original(
+                self.host.installer, mod, directory, backup=answer == QMessageBox.StandardButton.Yes
+            )
+
+        def success(_event):
+            self.host._scan_local()
+            for tab in self.host.pack_tabs:
+                tab.populate()
+            QMessageBox.information(self, "Oryginał", "Przywrócono oryginalny mod.")
+
+        self.host._start_task(work, success, name="overlay-restore-original")

@@ -83,6 +83,45 @@ class GitHubMod:
         return ""
 
 
+@dataclass(frozen=True)
+class EditMod:
+    repository: str
+    base_id: str
+    name: str
+    archive: str
+    titles: tuple[str, ...]
+
+    @property
+    def id(self):
+        return "overlay." + self.repository.split("/")[1].casefold()
+
+    @property
+    def url(self):
+        return "https://github.com/" + self.repository
+
+    @property
+    def edit_id(self):
+        return self.id
+
+
+EDIT_MODS = (
+    EditMod(
+        "StrielokPL/Edit330Miziuu",
+        "kingmods.63913",
+        "Ursus C-330/330M — edit",
+        "FS25_UrsusC330_330M_4x2.zip",
+        ("Ursus C-330/330M",),
+    ),
+    EditMod(
+        "StrielokPL/Edit355360Miziuu",
+        "kingmods.61633",
+        "Ursus C355–C360 — edit",
+        "FS25_UrsusC355xC360Pack.zip",
+        ("Ursus C355-C360 Pack",),
+    ),
+)
+
+
 PUBLIC_URSUS = GitHubMod(
     CatalogMod(
         id="strelokpl.ursus16541954",
@@ -103,6 +142,9 @@ def parse_entry(entry, *, source=""):
         raise KingModsError("Każdy wpis musi zawierać adres URL.")
     if url.rstrip("/").casefold() == PUBLIC_URSUS.url.casefold() and trusted_source(source):
         return PUBLIC_URSUS
+    for mod in EDIT_MODS:
+        if url.rstrip("/").casefold() == mod.url.casefold() and trusted_source(source):
+            return mod
     # No content-provided trust flag, repository, release URL, or name grants an exception.
     return KingMod.from_dict(entry)
 
@@ -177,7 +219,8 @@ class ModPack:
             "local": self.local,
             "watch": self.watch,
             "mods": [
-                ({"url": m.url} if isinstance(m, GitHubMod) else asdict(m)) for m in self.mods
+                ({"url": m.url} if isinstance(m, (GitHubMod, EditMod)) else asdict(m))
+                for m in self.mods
             ],
         }
 

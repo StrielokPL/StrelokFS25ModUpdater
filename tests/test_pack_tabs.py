@@ -117,3 +117,93 @@ class PackTabTests(unittest.TestCase):
         ) as opened:
             tab.open_download()
             self.assertEqual(opened.call_args.args[0].toString(), MF)
+
+    def test_official_edit_entries_refresh_and_survive_restart(self):
+        import json
+        from strelok_fs25_mod_updater.packs import EDIT_MODS
+        from strelok_fs25_mod_updater.compatibility import bundled_profiles
+        tab = self.window.pack_tabs[1]
+        manifests = {}
+        for mod in EDIT_MODS:
+            profile = bundled_profiles()[mod.base_id]
+            manifests[mod.repository] = {
+                "schemaVersion": 1, "packageType": "file-overlay", "id": mod.id,
+                "version": profile.edit_version, "archiveName": mod.archive,
+                "baseMod": {"version": profile.source_version,
+                    "kingmodsUrl": KM if mod.base_id.endswith("63913") else
+                        "https://www.kingmods.net/en/fs25/mods/61633/ursus",
+                    "downloadPage": MF}}
+        with (
+            patch.object(self.window, "_start_task", side_effect=self.synchronous),
+            patch.object(tab.pack, "load_text", return_value="StrielokPL\n" +
+                         "\n".join(m.url for m in EDIT_MODS)),
+            patch.object(self.window.github, "edit_manifest", side_effect=lambda r: manifests[r]),
+        ):
+            tab.client.cache["stale"] = (0, "old")
+            tab.refresh()
+        self.assertEqual(tab.mods, list(EDIT_MODS))
+        self.assertEqual(tab.table.rowCount(), 2)
+        self.assertFalse(tab.errors)
+        self.assertFalse(tab.client.cache)
+        tab.table.selectRow(0)
+        self.assertTrue(tab.import_button.isEnabled())
+        self.assertIn("Zainstaluj edit", tab.import_button.text())
+        self.assertEqual(tab.table.cellWidget(0, 3).currentData(), "0.0.5.1")
+        self.assertEqual(self.window.pack_store.load()[1].mods, list(EDIT_MODS))
+        with patch("strelok_fs25_mod_updater.kingmods_gui.QDesktopServices.openUrl",
+                   return_value=True) as opened:
+            tab.open_download()
+            self.assertEqual(opened.call_args.args[0].toString(), MF)
+
+    def test_edit_incompatible_warning_can_cancel_before_download(self):
+        from tests.test_overlay import OverlayTests
+        from strelok_fs25_mod_updater.compatibility import EditCompatibility
+        fixture = OverlayTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        fixture.manifest['baseMod']['version'] = '0.9.0.0'
+        fixture.manifest['baseMod']['incompatibleFrom'] = '1.0.0.0'
+        tab = self.window.pack_tabs[1]
+        tab.manifests[fixture.mod.id] = fixture.manifest
+        self.window.compatibility_profiles[fixture.mod.base_id] = EditCompatibility.from_manifest(
+            fixture.manifest, fixture.mod.repository)
+        with (
+            patch.object(self.window, '_mods_directory', return_value=fixture.directory),
+            patch('strelok_fs25_mod_updater.kingmods_gui.QFileDialog.getOpenFileName',
+                  return_value=(str(fixture.base), '')),
+            patch('strelok_fs25_mod_updater.kingmods_gui.QMessageBox.warning',
+                  return_value=QMessageBox.StandardButton.No) as warning,
+            patch('strelok_fs25_mod_updater.overlay.install_overlay') as install,
+        ):
+            tab.install_edit(fixture.mod)
+        install.assert_not_called()
+        self.assertIn('Niekompatybilna', warning.call_args.args[2])
+
+    def test_edit_confirmed_mismatch_and_no_backup_are_forwarded(self):
+        import shutil
+        from tests.test_overlay import OverlayTests
+        from strelok_fs25_mod_updater.compatibility import EditCompatibility
+        fixture = OverlayTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        fixture.manifest['baseMod']['sha256'] = 'different'
+        shutil.copy2(fixture.base, fixture.directory / fixture.mod.archive)
+        tab = self.window.pack_tabs[1]
+        tab.manifests[fixture.mod.id] = fixture.manifest
+        self.window.compatibility_profiles[fixture.mod.base_id] = EditCompatibility.from_manifest(
+            fixture.manifest, fixture.mod.repository)
+        with (
+            patch.object(self.window, '_mods_directory', return_value=fixture.directory),
+            patch.object(self.window, '_start_task', side_effect=self.synchronous),
+            patch.object(self.window, '_scan_local'),
+            patch('strelok_fs25_mod_updater.kingmods_gui.QMessageBox.warning',
+                  return_value=QMessageBox.StandardButton.Yes),
+            patch('strelok_fs25_mod_updater.kingmods_gui.QMessageBox.question',
+                  side_effect=[QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]),
+            patch('strelok_fs25_mod_updater.kingmods_gui.QMessageBox.information'),
+            patch('strelok_fs25_mod_updater.overlay.install_overlay', return_value={}) as install,
+        ):
+            tab.install_edit(fixture.mod)
+        self.assertTrue(install.call_args.kwargs['allow_mismatch'])
+        self.assertFalse(install.call_args.kwargs['backup'])
+        self.assertEqual(install.call_args.args[3], fixture.directory / fixture.mod.archive)

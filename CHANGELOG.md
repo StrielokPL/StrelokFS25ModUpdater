@@ -1,5 +1,17 @@
 # Historia zmian
 
+## 0.0.1a15
+
+- Oficjalna lista StrielokPL obsługuje repozytoria Edit330Miziuu i Edit355360Miziuu
+  jako osobne pozycje editów. Obce listy nadal przyjmują tylko KingMods i ModsFire.
+- Instalacja editu z oryginalnego ZIP-a: pobranie konkretnego commita repozytorium,
+  kontrola manifestu i sum plików, podmiana i usuwanie wskazanych plików,
+  zachowanie pozostałych plików bazy, weryfikacja wynikowej paczki i atomowa instalacja.
+- Zalecana baza dostępna pod przyciskiem pobrania. Niezgodna, nieoceniona lub inna
+  niż źródłowa paczka wymaga potwierdzenia. Wcześniejszy edit nie jest bazą oryginalną.
+- Wybór kopii poprzedniego moda oraz przywracanie oryginału z zachowanej kopii.
+- Przycisk „Odśwież listę i wersje” odczytuje listę i wersje bez pamięci podręcznej.
+
 ## 0.0.1a14 — oceny zgodności oryginałów z editami
 
 - źródłowa baza pozostaje zalecana i jest domyślnym wyborem wersji;

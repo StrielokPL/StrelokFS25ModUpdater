@@ -3,7 +3,7 @@
 Graficzny aktualizator modów do Farming Simulator 25 wydawanych przez
 [StrelokPL](https://github.com/StrielokPL). Program jest projektowany dla Windowsa i Linuksa.
 
-> Wersja `0.0.1a14` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
+> Wersja `0.0.1a15` jest wydaniem alfa. Projekt jest na wczesnym etapie rozwoju
 > i nie jest jeszcze przeznaczony do codziennego użycia bez testów oraz kopii zapasowych.
 
 ## Co już obsługuje
@@ -168,3 +168,26 @@ Plik `mods.txt`: pierwszy wiersz to nazwa zakładki, kolejne to linki KingMods/M
 **Opcje → Dodaj paczkę z GitHuba…** przyjmuje adres repozytorium (plik `mods.txt`)
 albo konkretnego pliku. **Wczytaj plik jako zakładkę…** dodaje listę lokalną.
 [Instrukcja i zasady adresów](docs/KINGMODS.md).
+
+### Instalacja editów z listy StrielokPL (od 0.0.1a15)
+
+Po odświeżeniu oficjalnej listy w zakładce StrielokPL pojawiają się Edit330Miziuu
+oraz Edit355360Miziuu. „Pobierz zalecaną bazę z ModsFire” otwiera stronę oryginału;
+pobranie odbywa się ręcznie w przeglądarce. „Zainstaluj edit na oryginalnym ZIP-ie…”
+pozwala wskazać pobrany oryginał lub użyć oryginału w folderze modów.
+
+Aplikacja odczytuje wersję z ZIP-a (uwzględnia różnicę numeracji KingMods i modDesc),
+przedstawia ocenę zgodności i prosi o potwierdzenie, gdy baza nie jest źródłową paczką.
+Następnie pyta o kopię zastępowanego moda. „Nie” oznacza instalację bez kopii;
+„Anuluj” przerywa. ZIP pobrany poza folder modów pozostaje zachowany.
+
+Edit pobierany jest z publicznego repozytorium, ze wskazanego identyfikatorem commita
+stanu. Weryfikacja sprawdza manifest, ścieżki oraz rozmiary i sumy SHA-256 plików.
+Zmiana manifestu od ostatniego sprawdzenia wymaga ponownego odświeżenia. Dla bazy
+źródłowej kontrolowana jest też zgodność całej zawartości wynikowej z manifestem.
+Nowe pliki innych wersji oryginału pozostają, o ile edit ich nie zastępuje lub usuwa.
+Nie oznacza to potwierdzenia ich poprawnego działania w grze.
+
+Jeżeli wykonano kopię oryginału, w wyborze wersji editu dostępne jest
+„Przywróć oryginalny mod…”. Przywracanie również pozwala wybrać kopię obecnego editu.
+Obce listy i pliki lokalne nie uzyskują możliwości dodawania repozytoriów GitHub.

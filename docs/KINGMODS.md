@@ -149,5 +149,18 @@ Sprzeczne oceny (np. zgodna wersja powyżej granicy niezgodności) są odrzucane
 `modDescVersion` opisuje osobno numer wewnętrzny ZIP-a: C355–C360 ma bazę na
 KingMods 2.0.4.0, a wewnętrznie 2.0.3.0. Lista wersji ocenia numery KingMods.
 
-Ta wersja dodaje oceny i ich wyświetlanie. Nakładanie paczek `file-overlay`
-pozostaje osobnym etapem; pobranie/instalacja oryginału nie jest zastosowaniem editu.
+Od 0.0.1a15 oficjalna lista StrielokPL dopuszcza także repozytoria
+`StrielokPL/Edit330Miziuu` i `StrielokPL/Edit355360Miziuu`. Są to osobne pozycje
+z instalatorem `file-overlay`. Pobranie/instalacja oryginału w zakładce Miziuu
+nadal nie jest zastosowaniem editu. Instalację editu uruchamia się z jego pozycji
+w zakładce StrielokPL. Przycisk pobrania przy edicie otwiera zalecaną bazę na ModsFire.
+
+Instalator sprawdza tytuł i wersję bazy, zgodność oraz sumę źródłowego ZIP-a.
+Różnica wymaga potwierdzenia; wynik budowany jest w pliku tymczasowym. Weryfikacja
+obejmuje ścieżki, sumy i rozmiary plików nakładki oraz kompletną zawartość wyniku
+na bazie źródłowej. Dopiero poprawny wynik zastępuje mod. Kopia poprzedniego moda
+jest opcjonalna, a pobrany ZIP spoza folderu modów pozostaje zachowany.
+Zachowaną kopię oryginału można przywrócić z listy wersji editu.
+
+Przycisk „Odśwież listę i wersje” omija pamięć podręczną list i metadanych.
+
